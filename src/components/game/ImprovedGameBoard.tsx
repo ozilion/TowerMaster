@@ -1,8 +1,8 @@
 
 import React from 'react';
 import { cn } from "@/lib/utils";
-import { Coins, Heart, Layers, Award } from 'lucide-react'; // Removed unused tower icons, added Award
-import type { PlacedTower, Enemy, Projectile, PlacementSpot, TowerCategory, GridPosition, PixelPosition, GameState as GameStateType } from '@/types/game';
+import { Coins, Heart, Layers, Award } from 'lucide-react';
+import type { PlacedTower, Enemy, Projectile, PlacementSpot, TowerCategory, GridPosition, PixelPosition, GameState as GameStateType, TowerDefinition } from '@/types/game';
 import gameConfig from '@/config/gameConfig';
 
 interface GameBoardProps {
@@ -10,22 +10,22 @@ interface GameBoardProps {
   enemies: Enemy[];
   projectiles: Projectile[];
   placementSpots: PlacementSpot[];
-  // selectedTowerType: TowerCategory | null; // This is now part of gameState prop
+  selectedTowerType: TowerCategory | null;
   selectedTowerForMovingId: string | null;
   onPlaceTower: (spot: PlacementSpot, towerType: TowerCategory) => void;
-  onTowerClick: (towerId: string) => void; // For clicking existing towers on the board
-  onSelectTowerType: (type: TowerCategory | null) => void; // For selecting a new tower type from ImprovedGameBoard's UI
+  onTowerClick: (towerId: string) => void;
+  onSelectTowerType: (type: TowerCategory | null) => void;
   onMoveTowerRequest: (towerId: string, spot: PlacementSpot) => void;
   gridToPixel: (gridPos: GridPosition) => PixelPosition;
   showRangeIndicatorForTower: PlacedTower | null;
-  gameState: GameStateType & { setGameState?: React.Dispatch<React.SetStateAction<GameStateType>> }; // GameState plus optional setGameState
+  gameState: GameStateType & { setGameState?: React.Dispatch<React.SetStateAction<GameStateType>> };
 }
 
 const TowerIconDisplay: React.FC<{ type: TowerCategory, sizeClass?: string }> = ({ type, sizeClass="w-5 h-5" }) => {
   const towerDef = gameConfig.towerTypes[type];
-  const IconComponent = towerDef?.icon; 
-  if (!IconComponent) { 
-    return <div className={`${sizeClass} bg-primary/50 rounded-sm flex items-center justify-center text-xs text-primary-foreground`}>T</div>;
+  const IconComponent = towerDef?.icon;
+  if (!IconComponent) {
+    return <div className={`${sizeClass} bg-primary/50 rounded-sm flex items-center justify-center text-xs text-primary-foreground`}>{type ? type.substring(0,1).toUpperCase() : '?'}</div>;
   }
   return <IconComponent className={`${sizeClass} text-primary-foreground`} />;
 };
@@ -35,15 +35,14 @@ const ImprovedGameBoard: React.FC<GameBoardProps> = ({
   enemies,
   projectiles,
   placementSpots,
-  // selectedTowerType, // This is now part of gameState prop
   selectedTowerForMovingId,
   onPlaceTower,
   onTowerClick,
-  onSelectTowerType, // This prop will be called for tower selection
+  onSelectTowerType,
   onMoveTowerRequest,
   gridToPixel,
   showRangeIndicatorForTower,
-  gameState 
+  gameState
 }) => {
   const boardWidth = gameConfig.gridCols * gameConfig.cellSize;
   const boardHeight = gameConfig.gridRows * gameConfig.cellSize;
@@ -51,7 +50,7 @@ const ImprovedGameBoard: React.FC<GameBoardProps> = ({
   const handleSpotClick = (spot: PlacementSpot) => {
     if (selectedTowerForMovingId && !spot.isOccupied) {
       onMoveTowerRequest(selectedTowerForMovingId, spot);
-    } else if (gameState.selectedTowerType && !spot.isOccupied) { // Use gameState.selectedTowerType
+    } else if (gameState.selectedTowerType && !spot.isOccupied) {
       onPlaceTower(spot, gameState.selectedTowerType);
     } else if (spot.isOccupied) {
       const towerOnSpot = towers.find(t => {
@@ -63,13 +62,9 @@ const ImprovedGameBoard: React.FC<GameBoardProps> = ({
       }
     }
   };
-  
-  const handleCannonTowerSelect = (type: TowerCategory | null) => {
-    onSelectTowerType(type); // Call the passed prop from page.tsx
-  };
 
   return (
-    <div className="flex flex-col h-full w-full bg-green-700/30 rounded-lg"> 
+    <div className="flex flex-col h-full w-full bg-green-700/30 rounded-lg">
       {/* Header */}
       <div className="bg-green-900/80 text-white py-2 px-4 flex justify-between items-center rounded-t-lg shadow-md">
         <div className="flex items-center gap-3">
@@ -82,9 +77,8 @@ const ImprovedGameBoard: React.FC<GameBoardProps> = ({
             <span className="text-lg font-semibold">{gameState.money}</span>
           </div>
         </div>
-        
+
         <div className="text-center">
-          {/* Title from page.tsx is sufficient */}
           <div className="flex items-center gap-1 justify-center">
             <Layers className="w-4 h-4 text-blue-300" />
             <span className="text-sm">
@@ -92,7 +86,7 @@ const ImprovedGameBoard: React.FC<GameBoardProps> = ({
             </span>
           </div>
         </div>
-        
+
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1" title="Skor">
             <Award className="w-5 h-5 text-amber-400" />
@@ -114,7 +108,7 @@ const ImprovedGameBoard: React.FC<GameBoardProps> = ({
       </div>
 
       {/* Main Board Area */}
-      <div 
+      <div
         className="relative bg-green-200 flex-grow border-x-2 border-green-700 shadow-inner overflow-hidden mx-auto"
         style={{ width: boardWidth, height: boardHeight }}
         aria-label="Game Board"
@@ -141,17 +135,17 @@ const ImprovedGameBoard: React.FC<GameBoardProps> = ({
 
           if (spot.isOccupied) {
             spotColor = 'bg-gray-500/40';
-            cursorStyle = 'cursor-pointer'; 
+            cursorStyle = 'cursor-pointer';
           } else if (selectedTowerForMovingId) {
-            spotColor = 'bg-green-400/40'; 
+            spotColor = 'bg-green-400/40';
             hoverEffect = 'hover:bg-green-400/60';
             cursorStyle = 'cursor-pointer';
           } else if (gameState.selectedTowerType) {
-            spotColor = 'bg-blue-300/40'; 
+            spotColor = 'bg-blue-300/40';
             hoverEffect = 'hover:bg-blue-400/60';
             cursorStyle = 'cursor-pointer';
           }
-          
+
           return (
             <div
               key={spot.id}
@@ -168,14 +162,14 @@ const ImprovedGameBoard: React.FC<GameBoardProps> = ({
             />
           );
         })}
-        
+
         {/* Draw Towers */}
         {towers.map((tower) => {
           const towerDef = gameConfig.towerTypes[tower.type];
-          if (!towerDef) return null; 
+          if (!towerDef) return null;
           const levelColor = towerDef.levels[tower.level]?.color || 'gray';
           const isSelectedForMoving = tower.id === selectedTowerForMovingId;
-          
+
           return (
             <div
               key={tower.id}
@@ -192,7 +186,7 @@ const ImprovedGameBoard: React.FC<GameBoardProps> = ({
                 border: `2px solid ${levelColor.replace('0.8', '1').replace('0.9','1')}`,
                 transform: `rotate(${tower.rotation || 0}deg) scale(${isSelectedForMoving ? 1.1 : 1})`,
                 transformOrigin: 'center center',
-                zIndex: isSelectedForMoving ? 12 : 10, 
+                zIndex: isSelectedForMoving ? 12 : 10,
                 cursor: 'pointer',
               }}
               onClick={() => onTowerClick(tower.id)}
@@ -250,7 +244,7 @@ const ImprovedGameBoard: React.FC<GameBoardProps> = ({
             key={p.id}
             className="absolute rounded-full"
             style={{
-              left: p.x - 3, 
+              left: p.x - 3,
               top: p.y - 3,
               width: 6,
               height: 6,
@@ -267,7 +261,7 @@ const ImprovedGameBoard: React.FC<GameBoardProps> = ({
             if (!spot.isOccupied) {
               const towerDef = gameConfig.towerTypes[gameState.selectedTowerType!];
               if (!towerDef) return null;
-              const tempTowerStats = towerDef.levels[1]; 
+              const tempTowerStats = towerDef.levels[1];
               const spotPx = gridToPixel(spot);
               return (
                 <div
@@ -292,39 +286,67 @@ const ImprovedGameBoard: React.FC<GameBoardProps> = ({
 
       {/* Game Controls - Cannon at Bottom */}
       <div className="bg-stone-800/90 relative py-3 px-2 rounded-b-lg shadow-inner">
-        <div className="grid grid-cols-5 gap-2"> 
-          {gameState.availableTowerTypes.slice(0, 5).map((towerType: TowerCategory) => {
-            const tower = gameConfig.towerTypes[towerType];
-            if (!tower) return null;
-            const canAfford = gameState.money >= tower.baseCost;
-            const isSelected = gameState.selectedTowerType === towerType;
-            
-            return (
-              <button 
-                key={towerType}
-                onClick={() => handleCannonTowerSelect(isSelected ? null : towerType)}
-                disabled={!canAfford && !isSelected}
-                className={cn(
-                  "flex flex-col items-center justify-center p-1.5 rounded-md transition-all transform active:scale-95 aspect-square",
-                  isSelected ? "bg-amber-500 text-white ring-2 ring-amber-300 shadow-lg scale-105" : 
-                    canAfford ? "bg-blue-700/70 hover:bg-blue-600/80 text-blue-100 shadow-md hover:shadow-lg" : "bg-gray-600/50 text-gray-400 opacity-70 cursor-not-allowed",
-                )}
-                title={`${tower.name} - Bedel: ${tower.baseCost}`}
-              >
-                <div className={cn(
-                  "w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center mb-1 border-2",
-                  isSelected ? "bg-amber-400 border-amber-200" : 
-                    canAfford ? "bg-blue-500/80 border-blue-400" : "bg-gray-500/50 border-gray-400"
-                )}>
-                  <TowerIconDisplay type={towerType} sizeClass="w-5 h-5 sm:w-6 sm:h-6" />
-                </div>
-                <span className="text-[10px] sm:text-xs font-semibold">{tower.baseCost}</span>
-              </button>
-            );
-          })}
-           {Array.from({ length: Math.max(0, 5 - gameState.availableTowerTypes.length) }).map((_, index) => (
-            <div key={`placeholder-${index}`} className="aspect-square bg-stone-700/50 rounded-md flex items-center justify-center">
-              <span className="text-stone-500 text-2xl">?</span>
+        {/* Cannon Base visual fluff */}
+        <div className="w-full flex justify-center mb-2">
+          <div className="flex items-center">
+            <div className="h-10 w-12 bg-stone-700 rounded-l-md flex items-center justify-center border-t border-l border-b border-stone-600 shadow-sm">
+                <div className="w-6 h-6 bg-stone-500 rounded-full border-2 border-stone-400"></div>
+            </div>
+            <div className="h-10 px-4 bg-stone-600 flex items-center justify-center border-t border-b border-stone-500 shadow-inner">
+                <span className="text-sm font-bold text-amber-400 tracking-wider">KULELER</span>
+            </div>
+            <div className="h-10 w-12 bg-stone-700 rounded-r-md flex items-center justify-center border-t border-r border-b border-stone-600 shadow-sm">
+                <div className="w-6 h-6 bg-stone-500 rounded-full border-2 border-stone-400"></div>
+            </div>
+          </div>
+        </div>
+
+        {/* Tower Selection */}
+        <div className="grid grid-cols-5 gap-2 px-2">
+          {(gameState.availableTowerTypes && gameState.availableTowerTypes.length > 0) ? (
+            gameState.availableTowerTypes.slice(0, 5).map((towerType: TowerCategory) => {
+              const towerInfo = gameConfig.towerTypes[towerType] as TowerDefinition | undefined; // Ensure type
+              const isSelected = gameState.selectedTowerType === towerType;
+              const canAfford = towerInfo ? gameState.money >= towerInfo.baseCost : false;
+
+              if (!towerInfo) { // Handle case where towerInfo might be undefined if towerType is bad
+                return (
+                    <div key={towerType} className="flex flex-col items-center justify-center p-1.5 rounded-md aspect-square bg-gray-700/50 text-red-400 text-xs text-center">
+                        Hatalı Kule: {towerType.substring(0,10)}
+                    </div>
+                );
+              }
+
+              return (
+                <button
+                  key={towerType}
+                  onClick={() => onSelectTowerType(isSelected ? null : towerType)}
+                  disabled={!canAfford && !isSelected}
+                  className={cn(
+                    "flex flex-col items-center justify-center p-1.5 rounded-md transition-all transform active:scale-95 aspect-square focus:outline-none focus:ring-2 focus:ring-amber-400",
+                    isSelected ? "bg-amber-500 text-white ring-2 ring-amber-300 shadow-lg scale-105" :
+                      canAfford ? "bg-blue-700/70 hover:bg-blue-600/80 text-blue-100 shadow-md hover:shadow-lg" : "bg-gray-600/50 text-gray-400 opacity-70 cursor-not-allowed",
+                  )}
+                  title={`${towerInfo.name} - Bedel: ${towerInfo.baseCost}`}
+                >
+                  <div className={cn(
+                    "w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center mb-1 border-2",
+                    isSelected ? "bg-amber-400 border-amber-200" :
+                      canAfford ? "bg-blue-500/80 border-blue-400" : "bg-gray-500/50 border-gray-400"
+                  )}>
+                    <TowerIconDisplay type={towerType} sizeClass="w-5 h-5 sm:w-6 sm:h-6" />
+                  </div>
+                  <span className="text-[10px] sm:text-xs font-semibold">{towerInfo.baseCost}</span>
+                </button>
+              );
+            })
+          ) : (
+            <p className="col-span-5 text-center text-stone-400 text-sm py-4">Kule Mevcut Değil</p>
+          )}
+          {/* Fill remaining slots if less than 5 towers are available */}
+          {gameState.availableTowerTypes && Array.from({ length: Math.max(0, 5 - gameState.availableTowerTypes.length) }).map((_, index) => (
+            <div key={`placeholder-slot-${index}`} className="aspect-square bg-stone-700/50 rounded-md flex items-center justify-center opacity-50 shadow-inner">
+              <span className="text-stone-500 text-2xl">-</span>
             </div>
           ))}
         </div>
@@ -334,3 +356,5 @@ const ImprovedGameBoard: React.FC<GameBoardProps> = ({
 };
 
 export default ImprovedGameBoard;
+
+
