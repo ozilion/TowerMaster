@@ -251,7 +251,9 @@ export function useGameLogic() {
       let target: Enemy | null = null;
       let minDistance = tower.stats.range + 1;
 
-      enemies.forEach(enemy => { 
+      // Use `enemies` state from the beginning of this gameLoop tick for targeting
+      const currentEnemiesForTargeting = enemies;
+      currentEnemiesForTargeting.forEach(enemy => { 
         const distance = Math.sqrt(Math.pow(enemy.x - tower.x, 2) + Math.pow(enemy.y - tower.y, 2));
         if (distance <= tower.stats.range && distance < minDistance) {
           minDistance = distance;
@@ -269,7 +271,7 @@ export function useGameLogic() {
           damage: tower.stats.damage,
           speed: tower.stats.projectileSpeed || 200,
           color: tower.stats.color,
-          targetPosition: { x: target.x, y: target.y }
+          targetPosition: { x: target.x, y: target.y } // Store initial target position
         };
         setProjectiles(prev => [...prev, newProjectile]);
         const angleToTarget = Math.atan2(target.y - tower.y, target.x - tower.x) * (180 / Math.PI) + 90;
@@ -278,48 +280,76 @@ export function useGameLogic() {
       return { ...tower, targetId: undefined, rotation: tower.rotation }; 
     }));
 
+    // Projectile Logic - Refactored
     setProjectiles(prevProjectiles => {
-      let moneyEarnedThisTick = 0;
-      let scoreEarnedThisTick = 0;
-      const liveEnemyIds = new Set(enemies.map(e => e.id)); 
+      const damageToApply: Record<string, { totalDamage: number, killedByProjectile: boolean, value: number }> = {};
+      const projectilesThatHitOrExpired = new Set<string>();
 
-      const updatedProjectiles = prevProjectiles.map(p => {
-        const targetEnemy = enemies.find(e => e.id === p.targetId); 
-        const targetPos = targetEnemy ? { x: targetEnemy.x, y: targetEnemy.y } : p.targetPosition; 
+      // First pass: Calculate new positions and identify hits, collect damage
+      const nextProjectilesState = prevProjectiles.map(p => {
+        if (projectilesThatHitOrExpired.has(p.id)) return p;
+
+        const currentTarget = enemies.find(e => e.id === p.targetId); // `enemies` from closure (start of current gameLoop tick)
+        const targetPos = currentTarget ? { x: currentTarget.x, y: currentTarget.y } : p.targetPosition;
 
         const angle = Math.atan2(targetPos.y - p.y, targetPos.x - p.x);
         const moveDistance = p.speed * deltaTime * gameState.gameSpeed;
         const distanceToTarget = Math.sqrt(Math.pow(targetPos.x - p.x, 2) + Math.pow(targetPos.y - p.y, 2));
 
-        if (distanceToTarget <= moveDistance && liveEnemyIds.has(p.targetId)) { 
-          setEnemies(prevEnemies => prevEnemies.map(e => {
-            if (e.id === p.targetId) {
-              const newHealth = e.health - p.damage;
-              if (newHealth <= 0) {
-                moneyEarnedThisTick += e.value; // Earn money
-                scoreEarnedThisTick += e.value; // Earn score
-                return null; 
-              }
-              return { ...e, health: newHealth };
-            }
-            return e;
-          }).filter(Boolean) as Enemy[]);
-          return null; 
-        } else if (distanceToTarget <= moveDistance && !liveEnemyIds.has(p.targetId)) {
-            return null; 
-        }else {
-          return { ...p, x: p.x + Math.cos(angle) * moveDistance, y: p.y + Math.sin(angle) * moveDistance };
-        }
-      }).filter(Boolean) as Projectile[];
+        let newX = p.x + Math.cos(angle) * moveDistance;
+        let newY = p.y + Math.sin(angle) * moveDistance;
 
-      if (moneyEarnedThisTick > 0 || scoreEarnedThisTick > 0) {
-        setGameState(prev => ({ 
-            ...prev, 
-            money: prev.money + moneyEarnedThisTick, 
-            score: prev.score + scoreEarnedThisTick 
-        }));
+        if (distanceToTarget <= moveDistance) { // Reaches target (or where it was)
+          projectilesThatHitOrExpired.add(p.id);
+          if (currentTarget) { // If target still exists
+            if (!damageToApply[currentTarget.id]) {
+              damageToApply[currentTarget.id] = { totalDamage: 0, killedByProjectile: false, value: currentTarget.value };
+            }
+            damageToApply[currentTarget.id].totalDamage += p.damage;
+          }
+          return { ...p, x: newX, y: newY }; // Positioned at hit, will be filtered
+        } else if (!currentTarget && Math.abs(newX - targetPos.x) < 1 && Math.abs(newY - targetPos.y) < 1) {
+          // Target disappeared, projectile reached last known spot
+          projectilesThatHitOrExpired.add(p.id);
+          return { ...p, x: newX, y: newY }; // Will be filtered
+        }
+        
+        return { ...p, x: newX, y: newY }; // Update position
+      });
+
+      // Apply damage to enemies and calculate earnings
+      if (Object.keys(damageToApply).length > 0) {
+        let moneyEarnedThisTick = 0;
+        let scoreEarnedThisTick = 0;
+
+        setEnemies(currentEnemies => {
+          const updatedEnemies = currentEnemies.map(enemy => {
+            if (damageToApply[enemy.id]) {
+              const enemyDamageRecord = damageToApply[enemy.id];
+              const newHealth = enemy.health - enemyDamageRecord.totalDamage;
+              if (newHealth <= 0) {
+                moneyEarnedThisTick += enemyDamageRecord.value;
+                scoreEarnedThisTick += enemyDamageRecord.value;
+                return null; // Mark for removal
+              }
+              return { ...enemy, health: newHealth };
+            }
+            return enemy;
+          }).filter(Boolean) as Enemy[];
+          
+          // Update game state for money and score if there were earnings
+          if (moneyEarnedThisTick > 0 || scoreEarnedThisTick > 0) {
+            setGameState(prevGameState => ({
+              ...prevGameState,
+              money: prevGameState.money + moneyEarnedThisTick,
+              score: prevGameState.score + scoreEarnedThisTick,
+            }));
+          }
+          return updatedEnemies;
+        });
       }
-      return updatedProjectiles;
+      
+      return nextProjectilesState.filter(p => !projectilesThatHitOrExpired.has(p.id));
     });
     
     if (gameState.gameStatus === 'waveInProgress' && enemies.length === 0 && enemiesToSpawnRef.current.length === 0) {
@@ -328,7 +358,7 @@ export function useGameLogic() {
 
     lastTickTimeRef.current = currentTime;
     gameLoopRef.current = requestAnimationFrame(gameLoop);
-  }, [gameState, enemies, projectiles, gridToPixel]); 
+  }, [gameState, enemies, projectiles, gridToPixel]); // Added projectiles to dependency array for gameLoop
 
   useEffect(() => {
     if (gameState.playerHealth <= 0 && !gameState.isGameOver) {
@@ -345,10 +375,10 @@ export function useGameLogic() {
       return;
     }
 
-    if ((gameState.gameStatus === 'waveInProgress' || (gameState.gameStatus === 'betweenWaves' && enemies.length > 0 && projectiles.length > 0)) && !gameLoopRef.current) {
+    if ((gameState.gameStatus === 'waveInProgress' || (gameState.gameStatus === 'betweenWaves' && (enemies.length > 0 || projectiles.length > 0))) && !gameLoopRef.current) {
         lastTickTimeRef.current = performance.now();
         gameLoopRef.current = requestAnimationFrame(gameLoop);
-    } else if (gameState.gameStatus !== 'waveInProgress' && !(gameState.gameStatus === 'betweenWaves' && enemies.length > 0 && projectiles.length > 0) && gameLoopRef.current) { 
+    } else if (gameState.gameStatus !== 'waveInProgress' && !(gameState.gameStatus === 'betweenWaves' && (enemies.length > 0 || projectiles.length > 0)) && gameLoopRef.current) { 
        cancelAnimationFrame(gameLoopRef.current);
        gameLoopRef.current = undefined; 
     }
@@ -380,5 +410,3 @@ export function useGameLogic() {
     setGameState
   };
 }
-
-    
