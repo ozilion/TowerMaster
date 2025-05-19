@@ -99,6 +99,11 @@ const gameConfig: GameConfig = {
     { waveNumber: 3, enemies: [{ type: 'orc', count: 5, spawnDelayMs: 2000, healthMultiplier: 1, speedMultiplier: 0.8 }, { type: 'goblin', count:10, spawnDelayMs:500, healthMultiplier:1.3, speedMultiplier:1.1}], spawnIntervalMs: 1500 },
     { waveNumber: 4, enemies: [{ type: 'orc', count: 10, spawnDelayMs: 1500, healthMultiplier: 1.2, speedMultiplier: 0.85 }], spawnIntervalMs: 1500 },
     { waveNumber: 5, enemies: [{ type: 'goblin', count: 25, spawnDelayMs: 500, healthMultiplier: 1.5, speedMultiplier: 1.2 }, { type: 'orc', count:5, spawnDelayMs:1200, healthMultiplier:1.5, speedMultiplier:0.9}], spawnIntervalMs: 1000 },
+    { waveNumber: 6, enemies: [{ type: 'goblin', count: 30, spawnDelayMs: 450, healthMultiplier: 1.6, speedMultiplier: 1.2 }, { type: 'orc', count: 7, spawnDelayMs: 1100, healthMultiplier: 1.6, speedMultiplier: 0.9 }], spawnIntervalMs: 900 },
+    { waveNumber: 7, enemies: [{ type: 'goblin', count: 40, spawnDelayMs: 400, healthMultiplier: 1.7, speedMultiplier: 1.3 }, { type: 'orc', count: 8, spawnDelayMs: 1000, healthMultiplier: 1.7, speedMultiplier: 0.95 }], spawnIntervalMs: 800 },
+    { waveNumber: 8, enemies: [{ type: 'goblin', count: 20, spawnDelayMs: 500, healthMultiplier: 1.8, speedMultiplier: 1.3 }, { type: 'orc', count: 12, spawnDelayMs: 900, healthMultiplier: 1.8, speedMultiplier: 1.0 }], spawnIntervalMs: 700 },
+    { waveNumber: 9, enemies: [{ type: 'goblin', count: 15, spawnDelayMs: 600, healthMultiplier: 1.9, speedMultiplier: 1.4 }, { type: 'orc', count: 15, spawnDelayMs: 800, healthMultiplier: 1.9, speedMultiplier: 1.0 }], spawnIntervalMs: 600 },
+    { waveNumber: 10, enemies: [{ type: 'goblin', count: 50, spawnDelayMs: 300, healthMultiplier: 2.0, speedMultiplier: 1.5 }, { type: 'orc', count: 20, spawnDelayMs: 700, healthMultiplier: 2.0, speedMultiplier: 1.1 }], spawnIntervalMs: 500 },
   ],
 };
 
