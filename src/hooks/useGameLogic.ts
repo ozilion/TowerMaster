@@ -38,7 +38,7 @@ export function useGameLogic() {
   const gameLoopRef = useRef<number>();
   const enemiesToSpawnRef = useRef<Array<Omit<Enemy, 'id' | 'x' | 'y' | 'pathIndex'>>>([])
   const nextSpawnTimeRef = useRef<number>(0);
-  const lastTickTimeRef = useRef<number>(performance.now());
+  const lastTickTimeRef = useRef<number>(performance.now()); // Initialize once at component mount
 
 
   const gridToPixel = useCallback((gridPos: GridPosition): PixelPosition => {
@@ -56,7 +56,7 @@ export function useGameLogic() {
       gameStatus: 'initial',
       waveStartTime: null,
     });
-    lastTickTimeRef.current = performance.now();
+    lastTickTimeRef.current = performance.now(); // Reset on full game reset
     setTowers([]);
     setEnemies([]);
     setProjectiles([]);
@@ -145,6 +145,10 @@ export function useGameLogic() {
     const newEnemiesToSpawn: Array<Omit<Enemy, 'id' | 'x' | 'y' | 'pathIndex'>> = [];
     waveData.enemies.forEach(enemyGroup => {
       const enemyTypeData = ENEMY_TYPES[enemyGroup.type as keyof typeof ENEMY_TYPES];
+      if (!enemyTypeData) {
+        console.warn(`Enemy type ${enemyGroup.type} not found in ENEMY_TYPES`);
+        return;
+      }
       for (let i = 0; i < enemyGroup.count; i++) {
         newEnemiesToSpawn.push({
           type: enemyGroup.type,
@@ -157,7 +161,12 @@ export function useGameLogic() {
       }
     });
     enemiesToSpawnRef.current = newEnemiesToSpawn;
-    nextSpawnTimeRef.current = performance.now() + (waveData.enemies[0]?.spawnDelayMs || gameConfig.waves[0].spawnIntervalMs) ;
+    
+    const firstEnemyGroup = waveData.enemies[0];
+    const initialDelay = typeof firstEnemyGroup?.spawnDelayMs === 'number' 
+                         ? firstEnemyGroup.spawnDelayMs 
+                         : waveData.spawnIntervalMs;
+    nextSpawnTimeRef.current = performance.now() + initialDelay;
 
 
     setGameState(prev => ({
@@ -166,7 +175,7 @@ export function useGameLogic() {
       gameStatus: 'waveInProgress',
       waveStartTime: performance.now(),
     }));
-    lastTickTimeRef.current = performance.now(); 
+    // No longer setting lastTickTimeRef.current here
   }, [gameState.currentWaveNumber, gameState.gameStatus, gameState.isGameOver]);
 
 
@@ -251,7 +260,6 @@ export function useGameLogic() {
       let target: Enemy | null = null;
       let minDistance = tower.stats.range + 1;
 
-      // Use `enemies` state from the beginning of this gameLoop tick for targeting
       const currentEnemiesForTargeting = enemies;
       currentEnemiesForTargeting.forEach(enemy => { 
         const distance = Math.sqrt(Math.pow(enemy.x - tower.x, 2) + Math.pow(enemy.y - tower.y, 2));
@@ -271,7 +279,7 @@ export function useGameLogic() {
           damage: tower.stats.damage,
           speed: tower.stats.projectileSpeed || 200,
           color: tower.stats.color,
-          targetPosition: { x: target.x, y: target.y } // Store initial target position
+          targetPosition: { x: target.x, y: target.y } 
         };
         setProjectiles(prev => [...prev, newProjectile]);
         const angleToTarget = Math.atan2(target.y - tower.y, target.x - tower.x) * (180 / Math.PI) + 90;
@@ -280,16 +288,14 @@ export function useGameLogic() {
       return { ...tower, targetId: undefined, rotation: tower.rotation }; 
     }));
 
-    // Projectile Logic - Refactored
     setProjectiles(prevProjectiles => {
       const damageToApply: Record<string, { totalDamage: number, killedByProjectile: boolean, value: number }> = {};
       const projectilesThatHitOrExpired = new Set<string>();
 
-      // First pass: Calculate new positions and identify hits, collect damage
       const nextProjectilesState = prevProjectiles.map(p => {
         if (projectilesThatHitOrExpired.has(p.id)) return p;
 
-        const currentTarget = enemies.find(e => e.id === p.targetId); // `enemies` from closure (start of current gameLoop tick)
+        const currentTarget = enemies.find(e => e.id === p.targetId); 
         const targetPos = currentTarget ? { x: currentTarget.x, y: currentTarget.y } : p.targetPosition;
 
         const angle = Math.atan2(targetPos.y - p.y, targetPos.x - p.x);
@@ -299,45 +305,42 @@ export function useGameLogic() {
         let newX = p.x + Math.cos(angle) * moveDistance;
         let newY = p.y + Math.sin(angle) * moveDistance;
 
-        if (distanceToTarget <= moveDistance) { // Reaches target (or where it was)
+        if (distanceToTarget <= moveDistance) { 
           projectilesThatHitOrExpired.add(p.id);
-          if (currentTarget) { // If target still exists
+          if (currentTarget) { 
             if (!damageToApply[currentTarget.id]) {
               damageToApply[currentTarget.id] = { totalDamage: 0, killedByProjectile: false, value: currentTarget.value };
             }
             damageToApply[currentTarget.id].totalDamage += p.damage;
           }
-          return { ...p, x: newX, y: newY }; // Positioned at hit, will be filtered
+          return { ...p, x: newX, y: newY }; 
         } else if (!currentTarget && Math.abs(newX - targetPos.x) < 1 && Math.abs(newY - targetPos.y) < 1) {
-          // Target disappeared, projectile reached last known spot
           projectilesThatHitOrExpired.add(p.id);
-          return { ...p, x: newX, y: newY }; // Will be filtered
+          return { ...p, x: newX, y: newY }; 
         }
         
-        return { ...p, x: newX, y: newY }; // Update position
+        return { ...p, x: newX, y: newY }; 
       });
 
-      // Apply damage to enemies and calculate earnings
       if (Object.keys(damageToApply).length > 0) {
         let moneyEarnedThisTick = 0;
         let scoreEarnedThisTick = 0;
 
         setEnemies(currentEnemies => {
-          const updatedEnemies = currentEnemies.map(enemy => {
+          const updatedEnemiesAfterDamage = currentEnemies.map(enemy => {
             if (damageToApply[enemy.id]) {
               const enemyDamageRecord = damageToApply[enemy.id];
               const newHealth = enemy.health - enemyDamageRecord.totalDamage;
               if (newHealth <= 0) {
                 moneyEarnedThisTick += enemyDamageRecord.value;
-                scoreEarnedThisTick += enemyDamageRecord.value;
-                return null; // Mark for removal
+                scoreEarnedThisTick += enemyDamageRecord.value; // Assuming score is also based on enemy value
+                return null; 
               }
               return { ...enemy, health: newHealth };
             }
             return enemy;
           }).filter(Boolean) as Enemy[];
           
-          // Update game state for money and score if there were earnings
           if (moneyEarnedThisTick > 0 || scoreEarnedThisTick > 0) {
             setGameState(prevGameState => ({
               ...prevGameState,
@@ -345,7 +348,7 @@ export function useGameLogic() {
               score: prevGameState.score + scoreEarnedThisTick,
             }));
           }
-          return updatedEnemies;
+          return updatedEnemiesAfterDamage;
         });
       }
       
@@ -358,7 +361,7 @@ export function useGameLogic() {
 
     lastTickTimeRef.current = currentTime;
     gameLoopRef.current = requestAnimationFrame(gameLoop);
-  }, [gameState, enemies, projectiles, gridToPixel]); // Added projectiles to dependency array for gameLoop
+  }, [gameState, enemies, projectiles, gridToPixel]); 
 
   useEffect(() => {
     if (gameState.playerHealth <= 0 && !gameState.isGameOver) {
@@ -367,25 +370,33 @@ export function useGameLogic() {
   }, [gameState.playerHealth, gameState.isGameOver]);
   
   useEffect(() => {
+    let shouldLoopRun = false;
     if (gameState.isGameOver) {
-      if (gameLoopRef.current) {
+      shouldLoopRun = false;
+    } else if (gameState.gameStatus === 'waveInProgress') {
+      shouldLoopRun = true;
+    } else if (gameState.gameStatus === 'betweenWaves') {
+      if (enemies.length > 0 || projectiles.length > 0) {
+        shouldLoopRun = true;
+      }
+    }
+
+    if (shouldLoopRun) {
+      if (!gameLoopRef.current) { 
+        // Do not set lastTickTimeRef.current here; it's managed by gameLoop's first run or hook initialization.
+        gameLoopRef.current = requestAnimationFrame(gameLoop);
+      }
+    } else { 
+      if (gameLoopRef.current) { 
         cancelAnimationFrame(gameLoopRef.current);
         gameLoopRef.current = undefined;
       }
-      return;
-    }
-
-    if ((gameState.gameStatus === 'waveInProgress' || (gameState.gameStatus === 'betweenWaves' && (enemies.length > 0 || projectiles.length > 0))) && !gameLoopRef.current) {
-        lastTickTimeRef.current = performance.now();
-        gameLoopRef.current = requestAnimationFrame(gameLoop);
-    } else if (gameState.gameStatus !== 'waveInProgress' && !(gameState.gameStatus === 'betweenWaves' && (enemies.length > 0 || projectiles.length > 0)) && gameLoopRef.current) { 
-       cancelAnimationFrame(gameLoopRef.current);
-       gameLoopRef.current = undefined; 
     }
     
     return () => {
       if (gameLoopRef.current) {
         cancelAnimationFrame(gameLoopRef.current);
+        gameLoopRef.current = undefined; 
       }
     };
   }, [gameLoop, gameState.gameStatus, gameState.isGameOver, enemies.length, projectiles.length]);
@@ -410,3 +421,5 @@ export function useGameLogic() {
     setGameState
   };
 }
+
+    
