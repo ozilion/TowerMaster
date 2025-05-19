@@ -1,8 +1,6 @@
 
-import type { GameConfig, TowerCategory, EnemyType, MainWave, SubWave, SubWaveEnemyConfig, TowerDefinition, PlacementSpot, GridPosition } from '@/types/game';
-// Icons are now commented out or removed from TOWER_TYPES to diagnose chunk loading issue
-// import { Shield, Flame, Snowflake, Zap, Target as CannonIcon } from 'lucide-react'; 
-import { v4 as uuidv4 } from 'uuid';
+import type { GameConfig, TowerCategory, EnemyType, MainWave, SubWave, TowerDefinition, PlacementSpot, GridPosition, InitialGameStateConfig } from '@/types/game';
+// import { v4 as uuidv4 } from 'uuid'; // Keep commented out for now
 
 const GRID_ROWS = 12;
 const GRID_COLS = 20;
@@ -33,51 +31,23 @@ const placementSpots: PlacementSpot[] = [
   { row: 8, col: 18, id: 'spot-8-18', isOccupied: false }, { row: 6, col: 18, id: 'spot-6-18', isOccupied: false },
 ];
 
-
+// Extremely simplified TOWER_TYPES for diagnosing chunk loading errors
 export const TOWER_TYPES: Record<TowerCategory, TowerDefinition> = {
   simple: {
-    id: 'simple', name: 'Basit Kule', /* icon: Shield, */ baseCost: 50,
+    id: 'simple', 
+    name: 'Basit Kule', 
+    // icon: Target, // Lucide icons removed for diagnostics
+    baseCost: 50,
     levels: {
       1: { damage: 10, range: CELL_SIZE * 2.5, fireRate: 1, projectileSpeed: 300, color: 'rgba(100, 100, 255, 0.8)' },
       2: { damage: 20, range: CELL_SIZE * 2.7, fireRate: 1.2, mergeCost: 75, projectileSpeed: 320, color: 'rgba(80, 80, 230, 0.9)' },
       3: { damage: 35, range: CELL_SIZE * 3, fireRate: 1.5, mergeCost: 125, projectileSpeed: 350, color: 'rgba(60, 60, 200, 1)' },
     },
-  },
-  fire: {
-    id: 'fire', name: 'Ateş Kulesi', /* icon: Flame, */ baseCost: 75,
-    levels: {
-      1: { damage: 15, range: CELL_SIZE * 1.8, fireRate: 2, projectileSpeed: 400, color: 'rgba(255, 100, 100, 0.8)' },
-      2: { damage: 30, range: CELL_SIZE * 2, fireRate: 2.5, mergeCost: 100, projectileSpeed: 420, color: 'rgba(230, 80, 80, 0.9)' },
-      3: { damage: 50, range: CELL_SIZE * 2.2, fireRate: 3, mergeCost: 150, projectileSpeed: 450, color: 'rgba(200, 60, 60, 1)' },
-    },
-  },
-  ice: {
-    id: 'ice', name: 'Buz Kulesi', /* icon: Snowflake, */ baseCost: 100,
-    levels: {
-      1: { damage: 8, range: CELL_SIZE * 3.5, fireRate: 0.7, projectileSpeed: 250, color: 'rgba(100, 200, 255, 0.8)', special: 'slow' },
-      2: { damage: 15, range: CELL_SIZE * 3.8, fireRate: 0.8, mergeCost: 125, projectileSpeed: 270, color: 'rgba(80, 180, 230, 0.9)', special: 'slow' },
-      3: { damage: 25, range: CELL_SIZE * 4.2, fireRate: 1, mergeCost: 175, projectileSpeed: 300, color: 'rgba(60, 160, 200, 1)', special: 'slow' },
-    },
-  },
-  laser: {
-    id: 'laser', name: 'Lazer Kulesi', /* icon: Zap, */ baseCost: 120,
-    levels: {
-      1: { damage: 5, range: CELL_SIZE * 3, fireRate: 5, projectileSpeed: 1000, color: 'rgba(255, 255, 0, 0.8)' },
-      2: { damage: 10, range: CELL_SIZE * 3.2, fireRate: 6, mergeCost: 150, projectileSpeed: 1000, color: 'rgba(230, 230, 0, 0.9)' },
-      3: { damage: 18, range: CELL_SIZE * 3.5, fireRate: 7, mergeCost: 200, projectileSpeed: 1000, color: 'rgba(200, 200, 0, 1)' },
-    }
-  },
-  cannon: {
-    id: 'cannon', name: 'Top Kulesi', /* icon: CannonIcon, */ baseCost: 150,
-    levels: {
-      1: { damage: 30, range: CELL_SIZE * 2.5, fireRate: 0.5, projectileSpeed: 200, color: 'rgba(50, 50, 50, 0.8)', special: 'aoe' },
-      2: { damage: 50, range: CELL_SIZE * 2.8, fireRate: 0.6, mergeCost: 180, projectileSpeed: 220, color: 'rgba(40, 40, 40, 0.9)', special: 'aoe' },
-      3: { damage: 80, range: CELL_SIZE * 3.1, fireRate: 0.7, mergeCost: 250, projectileSpeed: 240, color: 'rgba(30, 30, 30, 1)', special: 'aoe' },
-    }
   }
+  // Other tower types (fire, ice, laser, cannon) are intentionally removed for this diagnostic step.
 };
 
-export const ALL_TOWER_IDS = Object.keys(TOWER_TYPES) as TowerCategory[];
+export const ALL_TOWER_IDS: TowerCategory[] = ['simple']; // Only 'simple' tower for diagnostics
 
 export const ENEMY_TYPES: Record<EnemyType, { baseHealth: number; baseSpeed: number; value: number; size: number; color: string }> = {
   goblin: { baseHealth: 30, baseSpeed: CELL_SIZE / 2.5, value: 2, size: CELL_SIZE * 0.6, color: 'green' },
@@ -86,10 +56,10 @@ export const ENEMY_TYPES: Record<EnemyType, { baseHealth: number; baseSpeed: num
   boss: { baseHealth: 2000, baseSpeed: CELL_SIZE / 5, value: 100, size: CELL_SIZE * 1.5, color: 'purple' },
 };
 
-// Temporarily using static waves for diagnostics
-const TOTAL_MAIN_WAVES = 1; 
-const SUB_WAVES_PER_MAIN = 1;
+const TOTAL_MAIN_WAVES = 1; // Drastically reduced for diagnostics
+const SUB_WAVES_PER_MAIN = 1; // Drastically reduced for diagnostics
 
+// Using static waves for diagnostics, ensuring it's extremely simple
 const staticMainWaves: MainWave[] = [
   {
     mainWaveNumber: 1,
@@ -97,9 +67,9 @@ const staticMainWaves: MainWave[] = [
     baseSpeedMultiplier: 1,
     subWaves: [
       {
-        id: 'main1-sub1',
-        subWaveInMainIndex: 0, // 0-indexed
-        enemies: [{ type: 'goblin', count: 3 }],
+        id: 'main1-sub1-static', // Ensure IDs are simple strings
+        subWaveInMainIndex: 0,
+        enemies: [{ type: 'goblin', count: 3 }], // Only goblins for simplicity
         spawnIntervalMs: 1000,
         postSubWaveDelayMs: 2000,
       },
@@ -107,6 +77,25 @@ const staticMainWaves: MainWave[] = [
   },
 ];
 
+// const generateWaves = (totalMainWaves: number, subWavesPerMainNum: number): MainWave[] => {
+//   // ... (generateWaves function commented out as it's not used with staticMainWaves and was a suspect)
+//   // For diagnostics, we are using staticMainWaves.
+//   return []; // Or throw error if called, to ensure it's not being used.
+// }
+
+
+const initialGameStateConfig: InitialGameStateConfig = {
+    playerHealth: 20,
+    money: 200,
+    currentOverallSubWave: 0,
+    currentMainWaveDisplay: 1, // Start at wave 1
+    currentSubWaveInMainDisplay: 0, // 0 means wave not started yet
+    score: 0,
+    isGameOver: false,
+    gameSpeed: 1,
+    gameStatus: 'initial' as const, // Ensure 'as const' for strict typing
+    // availableTowerTypes and unlockableTowerProgression will be initialized client-side
+};
 
 const gameConfig: GameConfig = {
   gridRows: GRID_ROWS,
@@ -115,22 +104,14 @@ const gameConfig: GameConfig = {
   enemyPath,
   placementSpots,
   towerTypes: TOWER_TYPES,
-  initialGameState: {
-    playerHealth: 20,
-    money: 200,
-    currentOverallSubWave: 0,
-    currentMainWaveDisplay: 1,
-    currentSubWaveInMainDisplay: 0,
-    score: 0,
-    isGameOver: false,
-    gameSpeed: 1,
-    gameStatus: 'initial', 
-  },
-  mainWaves: staticMainWaves,
-  totalMainWaves: TOTAL_MAIN_WAVES, 
-  subWavesPerMain: SUB_WAVES_PER_MAIN, 
+  initialGameState: initialGameStateConfig, // Use the refined type
+  mainWaves: staticMainWaves, // Using static waves for diagnostics
+  totalMainWaves: TOTAL_MAIN_WAVES,
+  subWavesPerMain: SUB_WAVES_PER_MAIN,
   allTowerIds: ALL_TOWER_IDS,
-  maxUnlockableTowers: 4, 
+  maxUnlockableTowers: 1, // Simplified for diagnostics
 };
 
 export default gameConfig;
+
+    

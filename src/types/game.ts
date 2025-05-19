@@ -79,14 +79,14 @@ export interface SubWaveEnemyConfig {
 
 export interface SubWave {
   id: string;
-  subWaveInMainIndex: number; 
+  subWaveInMainIndex: number;
   enemies: SubWaveEnemyConfig[];
   spawnIntervalMs: number;
   postSubWaveDelayMs: number;
 }
 
 export interface MainWave {
-  mainWaveNumber: number; 
+  mainWaveNumber: number;
   baseHealthMultiplier: number;
   baseSpeedMultiplier: number;
   subWaves: SubWave[];
@@ -104,10 +104,21 @@ export interface GameState {
   selectedTowerType: TowerCategory | null;
   placementMode: boolean;
   gameStatus: 'initial' | 'subWaveInProgress' | 'waitingForNextSubWave' | 'betweenMainWaves' | 'gameOver' | 'gameWon';
-  // Sequence of all towers that *can* be unlocked in this game instance 
   unlockableTowerProgression: TowerCategory[];
-  // Towers currently unlocked and available for purchase/placement by the player
   availableTowerTypes: TowerCategory[];
+}
+
+// This type is for the initialGameState object within GameConfig
+export interface InitialGameStateConfig {
+  playerHealth: number;
+  money: number;
+  currentOverallSubWave: number;
+  currentMainWaveDisplay: number;
+  currentSubWaveInMainDisplay: number;
+  score: number;
+  isGameOver: boolean;
+  gameSpeed: number;
+  gameStatus: 'initial'; // Can be more specific if it's always 'initial' here
 }
 
 export interface PlacementSpot extends GridPosition {
@@ -122,10 +133,10 @@ export interface GameConfig {
   enemyPath: GridPosition[];
   placementSpots: PlacementSpot[];
   towerTypes: Record<TowerCategory, TowerDefinition>;
-  initialGameState: Omit<GameState, 'selectedTowerType' | 'placementMode' | 'unlockableTowerProgression' | 'availableTowerTypes'>;
+  initialGameState: InitialGameStateConfig; // Use the new type
   mainWaves: MainWave[];
   totalMainWaves: number;
   subWavesPerMain: number;
   allTowerIds: TowerCategory[];
-  maxUnlockableTowers: number; 
+  maxUnlockableTowers: number;
 }
