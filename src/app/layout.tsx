@@ -21,7 +21,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="tr"> {/* Changed lang to tr for Turkish */}
+    <html lang="tr">{/* Changed lang to tr for Turkish */}
       <body className={`${inter.variable} font-sans antialiased`}> {/* Use inter variable and a generic font-sans class */}
         {children}
         <Toaster />
