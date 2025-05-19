@@ -151,7 +151,8 @@ const gameConfig: GameConfig = {
     isGameOver: false,
     gameSpeed: 1,
     gameStatus: 'initial',
-    availableTowerTypes: [], // Will be populated by useGameLogic based on unlockableTowerProgression
+    availableTowerTypes: [], // Initialize as empty for client-side setup
+    unlockableTowerProgression: [], // Initialize as empty for client-side setup
   },
   mainWaves: generateWaves(),
   totalMainWaves: TOTAL_MAIN_WAVES,
