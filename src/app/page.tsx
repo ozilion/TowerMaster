@@ -10,7 +10,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { useGameLogic } from '@/hooks/useGameLogic';
 import type { PlacedTower, TowerCategory, PlacementSpot, GameState } from '@/types/game';
 // import { Heart, Coins, Layers, Award } from 'lucide-react';
-import gameConfig from '@/config/gameConfig'; // Reinstated
+// import gameConfig from '@/config/gameConfig'; // Temporarily commented out for diagnostics
 import { useToast } from '@/hooks/use-toast'; // Reinstated
 // import { Button } from '@/components/ui/button';
 
@@ -21,7 +21,7 @@ import { useToast } from '@/hooks/use-toast'; // Reinstated
 //     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
 //       <div className="bg-card text-card-foreground p-8 rounded-lg shadow-2xl text-center">
 //         <h2 className="text-3xl font-bold text-primary mb-4">Tebrikler, Oyunu Kazandın!</h2>
-//         <p className="text-xl mb-6">Skorun: <span className="font-semibold text-accent">{score}</span></p>
+//         <p className="text-xl mb-6">Skorun: <span className="font-semibold text-accent">{score}</span></p
 //         <Button onClick={onRestart} className="bg-primary text-primary-foreground hover:bg-primary/90 text-lg py-3 px-6">
 //           Yeniden Başlat
 //         </Button>
@@ -156,9 +156,9 @@ export default function KuleSavunmaPage() {
     //         <span className="text-sm font-semibold">
     //             Ana: {
     //                // gameLogic.gameState?.currentMainWaveDisplay
-    //             } / {gameConfig.totalMainWaves} | Alt: {
+    //             } / {/*gameConfig.totalMainWaves*/} | Alt: {
     //                // gameLogic.gameState?.currentSubWaveInMainDisplay
-    //             } / {gameConfig.subWavesPerMain}
+    //             } / {/*gameConfig.subWavesPerMain*/}
     //         </span>
     //       </div>
     //        <div className="flex items-center gap-2" title="Skor">
@@ -234,5 +234,3 @@ export default function KuleSavunmaPage() {
     <div>Diagnostic Test Page</div>
   );
 }
-
-    
