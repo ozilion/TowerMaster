@@ -3,8 +3,8 @@
 
 import type React from 'react';
 import type { PlacedTower, Enemy, Projectile, PlacementSpot, TowerCategory, GridPosition, PixelPosition } from '@/types/game';
-import gameConfig, { ENEMY_TYPES } from '@/config/gameConfig'; // ENEMY_TYPES import edildi
-import { Target, Flame, Snowflake, Shield } from 'lucide-react'; 
+import gameConfig, { ENEMY_TYPES } from '@/config/gameConfig'; 
+// import { Target, Flame, Snowflake, Shield } from 'lucide-react'; // Icons will be handled differently if this resolves the issue
 
 interface GameBoardProps {
   towers: PlacedTower[];
@@ -21,8 +21,11 @@ interface GameBoardProps {
 }
 
 const TowerIcon: React.FC<{ type: TowerCategory, sizeClass?: string }> = ({ type, sizeClass="w-5 h-5" }) => {
-  const Icon = gameConfig.towerTypes[type].icon;
-  return <Icon className={`${sizeClass} text-primary-foreground`} />;
+  const IconComponent = gameConfig.towerTypes[type]?.icon;
+  if (!IconComponent) { // If no icon is defined, render a placeholder or nothing
+    return <div className={`${sizeClass} bg-primary/50 rounded-sm flex items-center justify-center text-xs text-primary-foreground`}>T</div>;
+  }
+  return <IconComponent className={`${sizeClass} text-primary-foreground`} />;
 };
 
 const GameBoard: React.FC<GameBoardProps> = ({
@@ -136,7 +139,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
               boxShadow: `0 0 5px rgba(0,0,0,0.5)${isSelectedForMoving ? ', 0 0 15px var(--accent)' : ''}`,
               transform: `rotate(${tower.rotation || 0}deg) scale(${isSelectedForMoving ? 1.1 : 1})`,
               transformOrigin: 'center center',
-              zIndex: isSelectedForMoving ? 12 : 10, // Higher z-index if selected for moving
+              zIndex: isSelectedForMoving ? 12 : 10, 
               cursor: 'pointer',
             }}
             onClick={() => onTowerClick(tower.id)}
@@ -176,7 +179,6 @@ const GameBoard: React.FC<GameBoardProps> = ({
             height: enemy.size,
             backgroundColor: ENEMY_TYPES[enemy.type as keyof typeof ENEMY_TYPES]?.color || 'purple',
             zIndex: 20,
-            // transition: 'left 0.1s linear, top 0.1s linear', // Removed for smoother JS-driven animation
           }}
           aria-label={`Enemy ${enemy.type}`}
         >
@@ -202,7 +204,6 @@ const GameBoard: React.FC<GameBoardProps> = ({
             height: 6,
             backgroundColor: p.color,
             zIndex: 15,
-            // transition: 'left 0.05s linear, top 0.05s linear', // Removed for smoother JS-driven animation
           }}
           aria-hidden="true"
         />
@@ -212,7 +213,9 @@ const GameBoard: React.FC<GameBoardProps> = ({
        {selectedTowerType && !selectedTowerForMovingId && placementSpots.some(spot => !spot.isOccupied) && (
         placementSpots.map(spot => {
           if (!spot.isOccupied) {
-            const tempTowerStats = gameConfig.towerTypes[selectedTowerType].levels[1]; 
+            const towerDef = gameConfig.towerTypes[selectedTowerType];
+            if (!towerDef) return null;
+            const tempTowerStats = towerDef.levels[1]; 
             const spotPx = gridToPixel(spot);
             return (
               <div
@@ -238,4 +241,3 @@ const GameBoard: React.FC<GameBoardProps> = ({
 };
 
 export default GameBoard;
-

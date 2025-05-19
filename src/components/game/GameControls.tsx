@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import gameConfig, { TOWER_TYPES } from '@/config/gameConfig';
-import { Coins, Heart, Layers, ShieldAlert, HelpCircle, Move } from 'lucide-react';
+import { Coins, Heart, Layers, ShieldAlert, HelpCircle } from 'lucide-react';
 
 interface GameControlsProps {
   gameState: GameState;
@@ -70,7 +70,7 @@ const GameControls: React.FC<GameControlsProps> = ({
             {availableTowerTypes.map((towerId) => {
               const towerDef = TOWER_TYPES[towerId];
               if (!towerDef) return null;
-              const Icon = towerDef.icon;
+              const IconComponent = towerDef.icon;
               const canAfford = money >= towerDef.baseCost;
               const isSelectedForPlacement = selectedTowerType === towerDef.id;
               return (
@@ -83,7 +83,11 @@ const GameControls: React.FC<GameControlsProps> = ({
                   aria-pressed={isSelectedForPlacement}
                 >
                   <div className="flex items-center gap-2 w-full">
-                    <Icon className={`w-8 h-8 p-1 rounded bg-primary/20 ${isSelectedForPlacement ? 'text-primary-foreground' : 'text-primary'}`} />
+                    {IconComponent ? (
+                        <IconComponent className={`w-8 h-8 p-1 rounded bg-primary/20 ${isSelectedForPlacement ? 'text-primary-foreground' : 'text-primary'}`} />
+                    ) : (
+                        <div className={`w-8 h-8 p-1 rounded bg-primary/20 flex items-center justify-center text-xs ${isSelectedForPlacement ? 'text-primary-foreground' : 'text-primary'}`}>?</div>
+                    )}
                     <div className="flex-grow text-left">
                       <p className="font-semibold text-sm">{towerDef.name}</p>
                       <p className="text-xs text-muted-foreground">Bedel: {towerDef.baseCost}</p>
