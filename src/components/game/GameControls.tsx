@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import gameConfig from '@/config/gameConfig';
-import { Coins, Heart, Layers, ShieldAlert, HelpCircle } from 'lucide-react'; // Assuming these are for general UI
+import { Coins, Heart, Layers, ShieldAlert, HelpCircle } from 'lucide-react';
 
 interface GameControlsProps {
   gameState: GameState;
@@ -57,7 +57,7 @@ const GameControls: React.FC<GameControlsProps> = ({
             <span>Dalga: {currentMainWaveDisplay}-{currentSubWaveInMainDisplay}</span>
           </div>
           <div className="flex items-center gap-1 p-2 bg-secondary/50 rounded">
-            <ShieldAlert className="w-4 h-4 text-green-500" /> {/* Assuming this is for score */}
+            <ShieldAlert className="w-4 h-4 text-green-500" />
             <span>Skor: {score}</span>
           </div>
         </div>
@@ -70,7 +70,7 @@ const GameControls: React.FC<GameControlsProps> = ({
             {availableTowerTypes.map((towerId) => {
               const towerDef = gameConfig.towerTypes[towerId];
               if (!towerDef) return null;
-              const IconComponent = towerDef.icon; // This should be the LucideIcon component itself
+              const IconComponent = towerDef.icon;
               const canAfford = money >= towerDef.baseCost;
               const isSelectedForPlacement = selectedTowerType === towerDef.id;
               return (
@@ -157,3 +157,4 @@ const GameControls: React.FC<GameControlsProps> = ({
 };
 
 export default GameControls;
+

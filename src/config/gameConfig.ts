@@ -1,6 +1,6 @@
 
-import type { GameConfig, TowerCategory, MainWave, SubWave, EnemyType, TowerDefinition, InitialGameStateConfig } from '@/types/game';
-import { Target, Flame, Snowflake, Shield, Zap, Gem } from 'lucide-react'; // Shield for cannon, Zap for laser, Gem for boss (unused tower)
+import type { GameConfig, TowerCategory, MainWave, SubWave, EnemyType, TowerDefinition, InitialGameStateConfig, SubWaveEnemyConfig } from '@/types/game';
+import { Target, Flame, Snowflake, Shield, Zap, Gem } from 'lucide-react';
 
 const GRID_ROWS = 10;
 const GRID_COLS = 15;
@@ -54,21 +54,20 @@ export const TOWER_TYPES: Record<TowerCategory, TowerDefinition> = {
   laser: {
     id: 'laser', name: 'Lazer Kulesi', icon: Zap, baseCost: 150,
     levels: {
-        1: { damage: 25, range: 150, fireRate: 0.5, color: 'rgba(255,0,255,0.7)', projectileSpeed: 1000 /* anlık gibi */, special: 'Zırh İgnoru' },
+        1: { damage: 25, range: 150, fireRate: 0.5, color: 'rgba(255,0,255,0.7)', projectileSpeed: 1000, special: 'Zırh İgnoru' },
         2: { damage: 50, range: 160, fireRate: 0.6, mergeCost: 200, color: 'rgba(255,50,255,0.7)', projectileSpeed: 1000, special: 'Zırh İgnoru+' },
         3: { damage: 90, range: 170, fireRate: 0.7, mergeCost: 350, color: 'rgba(255,100,255,0.7)', projectileSpeed: 1000, special: 'Zırh İgnoru++' },
     }
   },
   cannon: {
-      id: 'cannon', name: 'Top Kulesi', icon: Shield, baseCost: 120, // Shield used as placeholder
+      id: 'cannon', name: 'Top Kulesi', icon: Shield, baseCost: 120, 
       levels: {
           1: { damage: 30, range: 90, fireRate: 0.4, color: 'rgba(50,50,50,0.9)', projectileSpeed: 150, special: 'Alan Etkili Patlama (Sıçrama)' },
           2: { damage: 60, range: 100, fireRate: 0.5, mergeCost: 180, color: 'rgba(70,70,70,0.9)', projectileSpeed: 160, special: 'Geniş Alan Etkili Patlama' },
           3: { damage: 110, range: 110, fireRate: 0.6, mergeCost: 300, color: 'rgba(90,90,90,0.9)', projectileSpeed: 170, special: 'Çok Geniş Alan Etkili Patlama' },
       }
   },
-  // 'boss' tower type is not meant to be placeable by player, but defined for completeness if ever needed
-  boss: {
+  boss: { // Not player placeable, defined for enemy type if needed or future use
     id: 'boss', name: 'Boss Kulesi (Kullanılmaz)', icon: Gem, baseCost: 9999,
     levels: {
         1: { damage: 0, range: 0, fireRate: 0, color: 'transparent' },
@@ -89,11 +88,19 @@ export const ENEMY_TYPES: Record<EnemyType, { baseHealth: number; baseSpeed: num
   boss: { baseHealth: 2000, baseSpeed: 25, baseValue: 100, color: 'rgba(255,0,0,0.9)', size: CELL_SIZE * 0.8 },
 };
 
-const initialGameStateConfig: InitialGameStateConfig = {
+const initialGameStateValues: Omit<InitialGameStateConfig, 'unlockableTowerProgression' | 'availableTowerTypes'> = {
   playerHealth: 100,
-  money: 200, // Start with enough for a couple of towers
+  money: 200,
   score: 0,
   gameSpeed: 1,
+  gameStatus: 'initial' as const,
+  currentOverallSubWave: 0,
+  currentMainWaveDisplay: 0,
+  currentSubWaveInMainDisplay: 0,
+  selectedTowerType: null,
+  placementMode: false,
+  isGameOver: false,
+  waveStartTime: 0,
 };
 
 const TOTAL_MAIN_WAVES = 50;
@@ -101,40 +108,37 @@ const SUB_WAVES_PER_MAIN = 10;
 
 const generateWaves = (totalMainWaves: number, subWavesPerMain: number): MainWave[] => {
   const mainWaves: MainWave[] = [];
-  let overallSubWaveCounter = 0;
 
   for (let i = 1; i <= totalMainWaves; i++) {
     const subWaves: SubWave[] = [];
-    const baseHealthMultiplier = 1 + (i - 1) * 0.25; // Increase health by 25% each main wave
-    const baseSpeedMultiplier = 1 + (i - 1) * 0.05;  // Increase speed by 5% each main wave
+    const baseHealthMultiplier = 1 + (i - 1) * 0.20; 
+    const baseSpeedMultiplier = 1 + (i - 1) * 0.03;  
+    const baseValueMultiplier = 1 + (i - 1) * 0.1;
 
     for (let j = 1; j <= subWavesPerMain; j++) {
-      overallSubWaveCounter++;
       const enemies: SubWaveEnemyConfig[] = [];
-      let enemyCount = Math.floor(3 + (i-1) * 0.5 + (j-1) * 0.2); // Gradually increase enemy count
-      enemyCount = Math.max(3, Math.min(enemyCount, 15)); // Clamp enemy count
+      let enemyCount = Math.floor(3 + (i-1) * 0.5 + (j-1) * 0.2); 
+      enemyCount = Math.max(3, Math.min(enemyCount, 15)); 
 
       const enemyTypesThisWave: EnemyType[] = ['goblin'];
-      if (i > 2 && j > 3) enemyTypesThisWave.push('orc');
-      if (i > 5 && j > 5) enemyTypesThisWave.push('troll');
+      if (i > 2 || (i === 2 && j > 5)) enemyTypesThisWave.push('orc'); // Orcs appear from main wave 2, sub-wave 6 or main wave 3+
+      if (i > 5 || (i === 5 && j > 5)) enemyTypesThisWave.push('troll'); // Trolls appear from main wave 5, sub-wave 6 or main wave 6+
       
-      // Boss wave logic
       if (i % 10 === 0 && j === subWavesPerMain) { // Every 10th main wave, last sub-wave is a boss
         enemies.push({ type: 'boss', count: 1, healthMultiplierOverride: baseHealthMultiplier * 1.5, speedMultiplierOverride: baseSpeedMultiplier * 0.8 });
-        enemyCount = 0; // No other enemies with the boss for simplicity
       } else {
          for (let k = 0; k < enemyCount; k++) {
             const randomEnemyType = enemyTypesThisWave[Math.floor(Math.random() * enemyTypesThisWave.length)];
-            enemies.push({ type: randomEnemyType, count: 1 }); // Add individual enemies
+            enemies.push({ type: randomEnemyType, count: 1 }); 
         }
       }
       
       subWaves.push({
         id: `main${i}-sub${j}`,
         subWaveInMainIndex: j,
-        enemies: enemies.flatMap(config => Array(config.count).fill({...config, count: 1})), // Expand counts
-        spawnIntervalMs: Math.max(300, 1000 - (i * 20) - (j * 10)), // Faster spawns in later waves
-        postSubWaveDelayMs: Math.max(1000, 2500 - (i * 30)), // Shorter delays between sub-waves later
+        enemies: enemies.flatMap(config => Array(config.count).fill({...config, count: 1})), 
+        spawnIntervalMs: Math.max(300, 1200 - (i * 15) - (j * 8)), 
+        postSubWaveDelayMs: Math.max(1500, 3000 - (i * 25)), 
       });
     }
     mainWaves.push({
@@ -156,7 +160,11 @@ const gameConfig: GameConfig = {
   placementSpots: PLACEMENT_SPOTS,
   towerTypes: TOWER_TYPES,
   enemyTypes: ENEMY_TYPES,
-  initialGameState: initialGameStateConfig,
+  initialGameState: {
+    ...initialGameStateValues,
+    unlockableTowerProgression: [], // To be set by useGameLogic on client
+    availableTowerTypes: [],       // To be set by useGameLogic on client
+  },
   mainWaves: generateWaves(TOTAL_MAIN_WAVES, SUB_WAVES_PER_MAIN),
   totalMainWaves: TOTAL_MAIN_WAVES,
   subWavesPerMain: SUB_WAVES_PER_MAIN,
@@ -165,3 +173,4 @@ const gameConfig: GameConfig = {
 };
 
 export default gameConfig;
+

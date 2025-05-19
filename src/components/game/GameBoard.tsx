@@ -178,7 +178,6 @@ const GameBoard: React.FC<GameBoardProps> = ({
             height: enemy.size,
             backgroundColor: gameConfig.enemyTypes[enemy.type as keyof typeof gameConfig.enemyTypes]?.color || 'purple',
             zIndex: 20,
-            // Removed CSS transition for smoother JS-driven animation
           }}
           aria-label={`Enemy ${enemy.type}`}
         >
@@ -188,7 +187,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
               style={{ width: `${(enemy.health / enemy.maxHealth) * 100}%` }}
             />
           </div>
-          <span className="text-white text-xs font-bold">E</span> {/* Placeholder, can be icon later */}
+          <span className="text-white text-xs font-bold">E</span>
         </div>
       ))}
 
@@ -204,7 +203,6 @@ const GameBoard: React.FC<GameBoardProps> = ({
             height: 6,
             backgroundColor: p.color,
             zIndex: 15,
-            // Removed CSS transition
           }}
           aria-hidden="true"
         />
@@ -242,3 +240,4 @@ const GameBoard: React.FC<GameBoardProps> = ({
 };
 
 export default GameBoard;
+

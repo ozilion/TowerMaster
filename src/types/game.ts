@@ -11,18 +11,18 @@ export interface PixelPosition {
   y: number;
 }
 
-export type TowerCategory = 'simple' | 'fire' | 'ice' | 'laser' | 'cannon' | 'boss'; // Added boss as a potential tower type for flexibility, though not used as such yet.
+export type TowerCategory = 'simple' | 'fire' | 'ice' | 'laser' | 'cannon' | 'boss';
 
 export interface TowerLevelStats {
   level: 1 | 2 | 3;
   damage: number;
   range: number; // in pixels
   fireRate: number; // attacks per second
-  cost?: number; // cost for this level if upgrading, or initial cost for level 1
-  mergeCost?: number; // cost to merge to this level
+  cost?: number; 
+  mergeCost?: number; 
   projectileSpeed?: number; // pixels per second
-  color: string; // For projectile/visuals
-  special?: string; // e.g., 'slow', 'aoe'
+  color: string; 
+  special?: string; 
 }
 
 export interface TowerDefinition {
@@ -44,10 +44,10 @@ export interface Enemy extends PixelPosition {
   type: EnemyType;
   health: number;
   maxHealth: number;
-  speed: number; // pixels per game tick or second
+  speed: number; 
   pathIndex: number;
-  value: number; // money awarded on defeat
-  size: number; // visual size
+  value: number; 
+  size: number; 
 }
 
 export interface Projectile extends PixelPosition {
@@ -57,7 +57,7 @@ export interface Projectile extends PixelPosition {
   damage: number;
   speed: number;
   color: string;
-  targetPosition: PixelPosition; // Last known position of the target
+  targetPosition: PixelPosition; 
 }
 
 export interface SubWaveEnemyConfig {
@@ -69,33 +69,33 @@ export interface SubWaveEnemyConfig {
 
 export interface SubWave {
   id: string;
-  subWaveInMainIndex: number; // 1-indexed for display
+  subWaveInMainIndex: number; 
   enemies: SubWaveEnemyConfig[];
-  spawnIntervalMs: number; // Time between individual enemy spawns in this sub-wave
-  postSubWaveDelayMs: number; // Delay AFTER this sub-wave completes, before next auto starts
+  spawnIntervalMs: number; 
+  postSubWaveDelayMs: number; 
 }
 
 export interface MainWave {
-  mainWaveNumber: number; // 1-indexed
+  mainWaveNumber: number; 
   baseHealthMultiplier: number;
   baseSpeedMultiplier: number;
-  subWaves: SubWave[]; // Array of sub-waves
+  subWaves: SubWave[]; 
 }
 export interface GameState {
   playerHealth: number;
   money: number;
-  currentOverallSubWave: number; // Overall sub-wave counter (1 to TOTAL_SUB_WAVES)
-  currentMainWaveDisplay: number; // Current main wave number for display (1-indexed)
-  currentSubWaveInMainDisplay: number; // Current sub-wave within the main wave for display (1-indexed)
+  currentOverallSubWave: number; 
+  currentMainWaveDisplay: number; 
+  currentSubWaveInMainDisplay: number; 
   score: number;
   isGameOver: boolean;
   gameSpeed: number;
   selectedTowerType: TowerCategory | null;
-  placementMode: boolean; // To indicate if player is in tower placement mode
+  placementMode: boolean; 
   gameStatus: 'initial' | 'subWaveInProgress' | 'waitingForNextSubWave' | 'betweenMainWaves' | 'gameOver' | 'gameWon';
-  unlockableTowerProgression: TowerCategory[]; // The sequence of towers that can be unlocked
-  availableTowerTypes: TowerCategory[]; // Towers currently available to the player
-  waveStartTime: number; // Timestamp when the current sub-wave's enemy spawning started
+  unlockableTowerProgression: TowerCategory[]; 
+  availableTowerTypes: TowerCategory[]; 
+  waveStartTime: number; 
 }
 
 export interface InitialGameStateConfig {
@@ -103,7 +103,19 @@ export interface InitialGameStateConfig {
   money: number;
   score: number;
   gameSpeed: number;
+  gameStatus: 'initial'; // Keep this fixed for initial config
+  // These will be initialized by the hook on client-side or have specific starting values
+  currentOverallSubWave: number;
+  currentMainWaveDisplay: number;
+  currentSubWaveInMainDisplay: number;
+  selectedTowerType: null;
+  placementMode: boolean;
+  isGameOver: boolean;
+  waveStartTime: number;
+  unlockableTowerProgression: TowerCategory[]; // Empty, will be set by useGameLogic
+  availableTowerTypes: TowerCategory[];      // Empty or ['simple'], will be set by useGameLogic
 }
+
 
 export interface PlacementSpot extends GridPosition {
   id: string;
@@ -123,5 +135,5 @@ export interface GameConfig {
   totalMainWaves: number;
   subWavesPerMain: number;
   allTowerIds: TowerCategory[];
-  maxUnlockableTowers: number; // Max number of tower types a player can unlock in a game
+  maxUnlockableTowers: number; 
 }
