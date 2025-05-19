@@ -38,7 +38,7 @@ export function useGameLogic() {
   const gameLoopRef = useRef<number>();
   const enemiesToSpawnRef = useRef<Array<Omit<Enemy, 'id' | 'x' | 'y' | 'pathIndex'>>>([])
   const nextSpawnTimeRef = useRef<number>(0);
-  const lastTickTimeRef = useRef<number>(performance.now()); // Initialize once at component mount
+  const lastTickTimeRef = useRef<number>(performance.now()); 
 
 
   const gridToPixel = useCallback((gridPos: GridPosition): PixelPosition => {
@@ -56,7 +56,7 @@ export function useGameLogic() {
       gameStatus: 'initial',
       waveStartTime: null,
     });
-    lastTickTimeRef.current = performance.now(); // Reset on full game reset
+    lastTickTimeRef.current = performance.now(); 
     setTowers([]);
     setEnemies([]);
     setProjectiles([]);
@@ -96,7 +96,7 @@ export function useGameLogic() {
 
     if (!tower1 || !tower2 || tower1.type !== tower2.type || tower1.level !== tower2.level || tower1.level >= 3) {
       console.log("Merge failed: conditions not met.");
-      return;
+      return false;
     }
 
     const nextLevel = (tower1.level + 1) as 2 | 3;
@@ -104,12 +104,12 @@ export function useGameLogic() {
 
     if (gameState.money < mergeCost) {
       console.log("Merge failed: not enough money.");
-      return;
+      return false;
     }
 
     const newStats = getStatsForLevel(tower1.type, nextLevel);
     const mergedTower: PlacedTower = {
-      ...tower1,
+      ...tower1, // Keep position of tower1
       level: nextLevel,
       stats: newStats,
     };
@@ -117,17 +117,63 @@ export function useGameLogic() {
     setTowers(prevTowers => [mergedTower, ...prevTowers.filter(t => t.id !== tower1Id && t.id !== tower2Id)]);
     setGameState(prev => ({ ...prev, money: prev.money - mergeCost }));
     
-    const spot1 = currentPlacementSpots.find(s => gridToPixel(s).x === tower1.x && gridToPixel(s).y === tower1.y);
-    const spot2 = currentPlacementSpots.find(s => gridToPixel(s).x === tower2.x && gridToPixel(s).y === tower2.y);
+    // Free up the spot of the tower that was "consumed" (tower2)
+    const spot2 = currentPlacementSpots.find(s => {
+      const spotPx = gridToPixel(s);
+      return Math.abs(tower2.x - spotPx.x) < gameConfig.cellSize / 2 && Math.abs(tower2.y - spotPx.y) < gameConfig.cellSize / 2;
+    });
     
-    if (spot2) { // Free up the spot of the tower that was merged into the other
+    if (spot2) { 
        setCurrentPlacementSpots(prevSpots => prevSpots.map(s => s.id === spot2.id ? {...s, isOccupied: false} : s));
     }
-    // spot1 remains occupied by the merged tower
+    // spot1 (where tower1 was, now mergedTower is) remains occupied.
 
     console.log(`Tower merged to level ${nextLevel}!`);
-
+    return true;
   }, [towers, gameState.money, currentPlacementSpots, gridToPixel]);
+
+  const moveTower = useCallback((towerId: string, newSpotId: string): boolean => {
+    const towerToMove = towers.find(t => t.id === towerId);
+    const newSpot = currentPlacementSpots.find(s => s.id === newSpotId);
+
+    if (!towerToMove || !newSpot || newSpot.isOccupied) {
+      console.error("Move failed: Tower or spot not found, or spot occupied.");
+      return false;
+    }
+
+    const oldSpot = currentPlacementSpots.find(s => {
+      const spotPx = gridToPixel(s);
+      return Math.abs(towerToMove.x - spotPx.x) < gameConfig.cellSize / 2 &&
+             Math.abs(towerToMove.y - spotPx.y) < gameConfig.cellSize / 2;
+    });
+
+    if (!oldSpot) {
+      console.error("Move failed: Could not find the old spot of the tower.");
+      return false;
+    }
+    
+    // Optional: Add a cost for moving
+    // const moveCost = 10; 
+    // if (gameState.money < moveCost) {
+    //   console.log("Move failed: not enough money.");
+    //   return false;
+    // }
+    // setGameState(prev => ({ ...prev, money: prev.money - moveCost }));
+
+    const newPixelPos = gridToPixel(newSpot);
+    setTowers(prevTowers => prevTowers.map(t =>
+      t.id === towerId ? { ...t, x: newPixelPos.x, y: newPixelPos.y } : t
+    ));
+
+    setCurrentPlacementSpots(prevSpots => prevSpots.map(s => {
+      if (s.id === oldSpot.id) return { ...s, isOccupied: false };
+      if (s.id === newSpot.id) return { ...s, isOccupied: true };
+      return s;
+    }));
+
+    console.log(`Tower ${towerId} moved to spot ${newSpotId}`);
+    return true;
+  }, [towers, currentPlacementSpots, gridToPixel, gameState.money]);
 
 
   const startNextWave = useCallback(() => {
@@ -175,12 +221,11 @@ export function useGameLogic() {
       gameStatus: 'waveInProgress',
       waveStartTime: performance.now(),
     }));
-    // No longer setting lastTickTimeRef.current here
   }, [gameState.currentWaveNumber, gameState.gameStatus, gameState.isGameOver]);
 
 
   const gameLoop = useCallback((currentTime: number) => {
-    const deltaTime = (currentTime - lastTickTimeRef.current) / 1000; 
+    const deltaTime = (currentTime - lastTickTimeRef.current) / 1000 * gameState.gameSpeed; 
 
     if (gameState.isGameOver) { 
       if (gameLoopRef.current) cancelAnimationFrame(gameLoopRef.current);
@@ -201,7 +246,7 @@ export function useGameLogic() {
             setEnemies(prev => [...prev, newEnemy]);
         }
         const currentWaveData = gameConfig.waves.find(w => w.waveNumber === gameState.currentWaveNumber);
-        nextSpawnTimeRef.current = currentTime + (currentWaveData?.spawnIntervalMs || 1000);
+        nextSpawnTimeRef.current = currentTime + (currentWaveData?.spawnIntervalMs || 1000) / gameState.gameSpeed;
     }
 
 
@@ -216,7 +261,7 @@ export function useGameLogic() {
         const targetPixelPos = gridToPixel(targetGridPos);
         const angle = Math.atan2(targetPixelPos.y - enemy.y, targetPixelPos.x - enemy.x);
         const distanceToTarget = Math.sqrt(Math.pow(targetPixelPos.x - enemy.x, 2) + Math.pow(targetPixelPos.y - enemy.y, 2));
-        const moveDistance = enemy.speed * deltaTime * gameState.gameSpeed;
+        const moveDistance = enemy.speed * deltaTime; // Already incorporates gameSpeed in deltaTime
 
         let newX = enemy.x;
         let newY = enemy.y;
@@ -253,14 +298,15 @@ export function useGameLogic() {
     });
 
     setTowers(prevTowers => prevTowers.map(tower => {
-      if (currentTime < tower.lastShotTime + (1000 / tower.stats.fireRate / gameState.gameSpeed)) {
+      if (currentTime < tower.lastShotTime + (1000 / tower.stats.fireRate / gameState.gameSpeed)) { // Adjusted for gameSpeed
         return tower; 
       }
 
       let target: Enemy | null = null;
       let minDistance = tower.stats.range + 1;
 
-      const currentEnemiesForTargeting = enemies;
+      // Use a stable reference to enemies for targeting within this iteration
+      const currentEnemiesForTargeting = enemiesRef.current;
       currentEnemiesForTargeting.forEach(enemy => { 
         const distance = Math.sqrt(Math.pow(enemy.x - tower.x, 2) + Math.pow(enemy.y - tower.y, 2));
         if (distance <= tower.stats.range && distance < minDistance) {
@@ -289,17 +335,20 @@ export function useGameLogic() {
     }));
 
     setProjectiles(prevProjectiles => {
-      const damageToApply: Record<string, { totalDamage: number, killedByProjectile: boolean, value: number }> = {};
+      const damageToApply: Record<string, { totalDamage: number; value: number }> = {};
       const projectilesThatHitOrExpired = new Set<string>();
+      // Use stable enemiesRef for projectile target finding
+      const currentEnemiesForProjectileLogic = enemiesRef.current;
+
 
       const nextProjectilesState = prevProjectiles.map(p => {
         if (projectilesThatHitOrExpired.has(p.id)) return p;
 
-        const currentTarget = enemies.find(e => e.id === p.targetId); 
+        const currentTarget = currentEnemiesForProjectileLogic.find(e => e.id === p.targetId); 
         const targetPos = currentTarget ? { x: currentTarget.x, y: currentTarget.y } : p.targetPosition;
 
         const angle = Math.atan2(targetPos.y - p.y, targetPos.x - p.x);
-        const moveDistance = p.speed * deltaTime * gameState.gameSpeed;
+        const moveDistance = p.speed * deltaTime; // Already incorporates gameSpeed
         const distanceToTarget = Math.sqrt(Math.pow(targetPos.x - p.x, 2) + Math.pow(targetPos.y - p.y, 2));
 
         let newX = p.x + Math.cos(angle) * moveDistance;
@@ -309,13 +358,13 @@ export function useGameLogic() {
           projectilesThatHitOrExpired.add(p.id);
           if (currentTarget) { 
             if (!damageToApply[currentTarget.id]) {
-              damageToApply[currentTarget.id] = { totalDamage: 0, killedByProjectile: false, value: currentTarget.value };
+              damageToApply[currentTarget.id] = { totalDamage: 0, value: currentTarget.value };
             }
             damageToApply[currentTarget.id].totalDamage += p.damage;
           }
           return { ...p, x: newX, y: newY }; 
         } else if (!currentTarget && Math.abs(newX - targetPos.x) < 1 && Math.abs(newY - targetPos.y) < 1) {
-          projectilesThatHitOrExpired.add(p.id);
+          projectilesThatHitOrExpired.add(p.id); // Projectile reached last known spot of a gone target
           return { ...p, x: newX, y: newY }; 
         }
         
@@ -333,7 +382,7 @@ export function useGameLogic() {
               const newHealth = enemy.health - enemyDamageRecord.totalDamage;
               if (newHealth <= 0) {
                 moneyEarnedThisTick += enemyDamageRecord.value;
-                scoreEarnedThisTick += enemyDamageRecord.value; // Assuming score is also based on enemy value
+                scoreEarnedThisTick += enemyDamageRecord.value; 
                 return null; 
               }
               return { ...enemy, health: newHealth };
@@ -355,35 +404,38 @@ export function useGameLogic() {
       return nextProjectilesState.filter(p => !projectilesThatHitOrExpired.has(p.id));
     });
     
-    if (gameState.gameStatus === 'waveInProgress' && enemies.length === 0 && enemiesToSpawnRef.current.length === 0) {
+    if (gameState.gameStatus === 'waveInProgress' && enemiesRef.current.length === 0 && enemiesToSpawnRef.current.length === 0) {
         setGameState(prev => ({ ...prev, gameStatus: 'betweenWaves' }));
     }
 
     lastTickTimeRef.current = currentTime;
     gameLoopRef.current = requestAnimationFrame(gameLoop);
-  }, [gameState, enemies, projectiles, gridToPixel]); 
+  }, [gameState, gridToPixel]); 
 
+  // Refs for stable enemy list access within game loop
+  const enemiesRef = useRef(enemies);
   useEffect(() => {
-    if (gameState.playerHealth <= 0 && !gameState.isGameOver) {
-      setGameState(prev => ({ ...prev, isGameOver: true, gameStatus: 'gameOver' }));
-    }
-  }, [gameState.playerHealth, gameState.isGameOver]);
-  
+    enemiesRef.current = enemies;
+  }, [enemies]);
+
+
   useEffect(() => {
     let shouldLoopRun = false;
     if (gameState.isGameOver) {
       shouldLoopRun = false;
     } else if (gameState.gameStatus === 'waveInProgress') {
       shouldLoopRun = true;
-    } else if (gameState.gameStatus === 'betweenWaves') {
-      if (enemies.length > 0 || projectiles.length > 0) {
+    } else if (gameState.gameStatus === 'betweenWaves' || gameState.gameStatus === 'initial') {
+        // Keep loop running if there are active projectiles even between waves or at start (e.g. leftover from a reset while projectiles were flying)
+      if (projectiles.length > 0 || enemies.length > 0) { 
         shouldLoopRun = true;
       }
     }
 
+
     if (shouldLoopRun) {
       if (!gameLoopRef.current) { 
-        // Do not set lastTickTimeRef.current here; it's managed by gameLoop's first run or hook initialization.
+        lastTickTimeRef.current = performance.now(); // Ensure lastTickTime is current when loop (re)starts
         gameLoopRef.current = requestAnimationFrame(gameLoop);
       }
     } else { 
@@ -401,6 +453,12 @@ export function useGameLogic() {
     };
   }, [gameLoop, gameState.gameStatus, gameState.isGameOver, enemies.length, projectiles.length]);
 
+  useEffect(() => {
+    if (gameState.playerHealth <= 0 && !gameState.isGameOver) {
+      setGameState(prev => ({ ...prev, isGameOver: true, gameStatus: 'gameOver' }));
+    }
+  }, [gameState.playerHealth, gameState.isGameOver]);
+
 
   const setSelectedTowerType = (type: TowerCategory | null) => {
     setGameState(prev => ({ ...prev, selectedTowerType: type, placementMode: !!type }));
@@ -414,6 +472,7 @@ export function useGameLogic() {
     currentPlacementSpots,
     placeTower,
     attemptMergeTowers,
+    moveTower,
     startNextWave,
     setSelectedTowerType,
     resetGame,
@@ -421,5 +480,3 @@ export function useGameLogic() {
     setGameState
   };
 }
-
-    

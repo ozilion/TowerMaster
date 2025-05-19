@@ -7,14 +7,15 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import gameConfig, { TOWER_TYPES } from '@/config/gameConfig';
-import { Coins, Heart, Layers, ShieldAlert, HelpCircle } from 'lucide-react';
+import { Coins, Heart, Layers, ShieldAlert, HelpCircle, Move } from 'lucide-react';
 
 interface GameControlsProps {
   gameState: GameState;
   onStartWave: () => void;
   onSelectTowerType: (type: TowerCategory | null) => void;
   onResetGame: () => void;
-  selectedPlacedTower: PlacedTower | null; // For displaying info of a clicked tower
+  selectedPlacedTower: PlacedTower | null;
+  selectedTowerForMovingId: string | null; // Added prop
   onShowInstructions: () => void;
 }
 
@@ -24,9 +25,11 @@ const GameControls: React.FC<GameControlsProps> = ({
   onSelectTowerType,
   onResetGame,
   selectedPlacedTower,
+  selectedTowerForMovingId, // Use prop
   onShowInstructions,
 }) => {
   const { playerHealth, money, currentWaveNumber, score, gameStatus, selectedTowerType } = gameState;
+  const isTowerActiveForInteraction = selectedPlacedTower && selectedTowerForMovingId === selectedPlacedTower.id;
 
   return (
     <Card className="h-full flex flex-col">
@@ -34,7 +37,6 @@ const GameControls: React.FC<GameControlsProps> = ({
         <CardTitle className="text-xl text-center">Kule Savunma</CardTitle>
       </CardHeader>
       <CardContent className="flex-grow flex flex-col gap-3 overflow-y-auto p-3">
-        {/* Game Stats */}
         <div className="grid grid-cols-2 gap-2 text-sm">
           <div className="flex items-center gap-1 p-2 bg-secondary/50 rounded">
             <Heart className="w-4 h-4 text-red-500" />
@@ -49,31 +51,31 @@ const GameControls: React.FC<GameControlsProps> = ({
             <span>Dalga: {currentWaveNumber}</span>
           </div>
           <div className="flex items-center gap-1 p-2 bg-secondary/50 rounded">
-            <ShieldAlert className="w-4 h-4 text-green-500" /> {/* Using ShieldAlert for score */}
+            <ShieldAlert className="w-4 h-4 text-green-500" />
             <span>Skor: {score}</span>
           </div>
         </div>
 
         <Separator />
 
-        {/* Tower Selection */}
         <div>
           <h3 className="text-md font-semibold mb-2 text-center">Kuleler</h3>
           <div className="grid grid-cols-1 gap-2">
             {Object.values(TOWER_TYPES).map((towerDef) => {
               const Icon = towerDef.icon;
               const canAfford = money >= towerDef.baseCost;
+              const isSelectedForPlacement = selectedTowerType === towerDef.id;
               return (
                 <Button
                   key={towerDef.id}
-                  variant={selectedTowerType === towerDef.id ? 'default' : 'outline'}
-                  onClick={() => onSelectTowerType(selectedTowerType === towerDef.id ? null : towerDef.id)}
-                  disabled={!canAfford && selectedTowerType !== towerDef.id}
+                  variant={isSelectedForPlacement ? 'default' : 'outline'}
+                  onClick={() => onSelectTowerType(isSelectedForPlacement ? null : towerDef.id)}
+                  disabled={!canAfford && !isSelectedForPlacement || !!selectedTowerForMovingId} // Disable if moving a tower
                   className="w-full justify-start h-auto p-2 shadow-sm hover:shadow-md transition-shadow"
-                  aria-pressed={selectedTowerType === towerDef.id}
+                  aria-pressed={isSelectedForPlacement}
                 >
                   <div className="flex items-center gap-2 w-full">
-                    <Icon className={`w-8 h-8 p-1 rounded bg-primary/20 ${selectedTowerType === towerDef.id ? 'text-primary-foreground' : 'text-primary'}`} />
+                    <Icon className={`w-8 h-8 p-1 rounded bg-primary/20 ${isSelectedForPlacement ? 'text-primary-foreground' : 'text-primary'}`} />
                     <div className="flex-grow text-left">
                       <p className="font-semibold text-sm">{towerDef.name}</p>
                       <p className="text-xs text-muted-foreground">Bedel: {towerDef.baseCost}</p>
@@ -86,18 +88,17 @@ const GameControls: React.FC<GameControlsProps> = ({
           </div>
         </div>
         
-        {selectedTowerType && (
+        {selectedTowerType && !selectedPlacedTower && (
             <p className="text-xs text-center text-accent-foreground bg-accent/20 p-1 rounded">
                 Yerleştirmek için haritada boş bir alana tıklayın.
             </p>
         )}
 
-
         {selectedPlacedTower && (
           <>
             <Separator />
             <div>
-              <h3 className="text-md font-semibold mb-1 text-center">Seçili Kule</h3>
+              <h3 className="text-md font-semibold mb-1 text-center">Seçili Kule Bilgileri</h3>
               <Card className="bg-secondary/30 p-2 text-xs">
                 <p><strong>Tip:</strong> {TOWER_TYPES[selectedPlacedTower.type].name}</p>
                 <p><strong>Seviye:</strong> {selectedPlacedTower.level}</p>
@@ -108,7 +109,12 @@ const GameControls: React.FC<GameControlsProps> = ({
                   <p><strong>Birleştirme Bedeli:</strong> {TOWER_TYPES[selectedPlacedTower.type].levels[(selectedPlacedTower.level + 1) as 2 | 3].mergeCost || 'N/A'}</p>
                 )}
               </Card>
-               <p className="text-xs text-center text-muted-foreground mt-1">Aynı tip ve seviyedeki başka bir kuleye tıklayarak birleştir.</p>
+              <p className="text-xs text-center text-muted-foreground mt-1 px-1">
+                {isTowerActiveForInteraction
+                  ? "Taşımak için boş bir alana, birleştirmek için aynı tip ve seviyedeki başka bir kuleye tıklayın. İptal etmek için bu kuleye tekrar tıklayın."
+                  : "Aynı tip ve seviyedeki başka bir kuleye tıklayarak birleştirin. Veya taşımak için bu kuleye tekrar tıklayın."
+                }
+              </p>
             </div>
           </>
         )}
@@ -117,7 +123,7 @@ const GameControls: React.FC<GameControlsProps> = ({
         <div className="mt-auto flex flex-col gap-2 pt-3">
           <Button
             onClick={onStartWave}
-            disabled={gameStatus === 'waveInProgress' || gameState.isGameOver}
+            disabled={gameStatus === 'waveInProgress' || gameState.isGameOver || !!selectedTowerForMovingId}
             className="w-full bg-accent text-accent-foreground hover:bg-accent/90 text-base py-3 shadow-lg hover:shadow-xl transition-shadow"
           >
             {currentWaveNumber === 0 ? 'İlk Dalga Başlat' : `Dalga ${currentWaveNumber + 1} Başlat`}
@@ -137,4 +143,3 @@ const GameControls: React.FC<GameControlsProps> = ({
 };
 
 export default GameControls;
-

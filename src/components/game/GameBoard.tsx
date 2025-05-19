@@ -3,8 +3,8 @@
 
 import type React from 'react';
 import type { PlacedTower, Enemy, Projectile, PlacementSpot, TowerCategory, GridPosition, PixelPosition } from '@/types/game';
-import gameConfig, { ENEMY_TYPES } from '@/config/gameConfig'; // Added ENEMY_TYPES import
-import { Target, Flame, Snowflake, Shield } from 'lucide-react'; // Shield for Simple Tower
+import gameConfig, { ENEMY_TYPES } from '@/config/gameConfig';
+import { Target, Flame, Snowflake, Shield } from 'lucide-react'; 
 
 interface GameBoardProps {
   towers: PlacedTower[];
@@ -12,10 +12,12 @@ interface GameBoardProps {
   projectiles: Projectile[];
   placementSpots: PlacementSpot[];
   selectedTowerType: TowerCategory | null;
+  selectedTowerForMovingId: string | null;
   onPlaceTower: (spot: PlacementSpot, towerType: TowerCategory) => void;
-  onTowerClick: (towerId: string) => void; // For selecting a tower to merge/upgrade
+  onTowerClick: (towerId: string) => void;
+  onMoveTowerRequest: (towerId: string, spot: PlacementSpot) => void;
   gridToPixel: (gridPos: GridPosition) => PixelPosition;
-  showRangeIndicatorForTower: PlacedTower | null; // Tower whose range to show
+  showRangeIndicatorForTower: PlacedTower | null;
 }
 
 const TowerIcon: React.FC<{ type: TowerCategory, sizeClass?: string }> = ({ type, sizeClass="w-5 h-5" }) => {
@@ -29,8 +31,10 @@ const GameBoard: React.FC<GameBoardProps> = ({
   projectiles,
   placementSpots,
   selectedTowerType,
+  selectedTowerForMovingId,
   onPlaceTower,
   onTowerClick,
+  onMoveTowerRequest,
   gridToPixel,
   showRangeIndicatorForTower,
 }) => {
@@ -38,7 +42,9 @@ const GameBoard: React.FC<GameBoardProps> = ({
   const boardHeight = gameConfig.gridRows * gameConfig.cellSize;
 
   const handleSpotClick = (spot: PlacementSpot) => {
-    if (selectedTowerType && !spot.isOccupied) {
+    if (selectedTowerForMovingId && !spot.isOccupied) {
+      onMoveTowerRequest(selectedTowerForMovingId, spot);
+    } else if (selectedTowerType && !spot.isOccupied) {
       onPlaceTower(spot, selectedTowerType);
     } else if (spot.isOccupied) {
       const towerOnSpot = towers.find(t => {
@@ -59,7 +65,6 @@ const GameBoard: React.FC<GameBoardProps> = ({
     >
       {/* Draw Path */}
       {gameConfig.enemyPath.map((segment, index) => {
-        const pos = gridToPixel(segment);
         return (
           <div
             key={`path-${index}`}
@@ -76,11 +81,27 @@ const GameBoard: React.FC<GameBoardProps> = ({
 
       {/* Draw Placement Spots */}
       {placementSpots.map((spot) => {
-        const spotColor = spot.isOccupied ? 'bg-gray-500/50' : (selectedTowerType ? 'bg-blue-300/50 hover:bg-blue-400/70 cursor-pointer' : 'bg-gray-300/50');
+        let spotColor = 'bg-gray-300/50';
+        let hoverEffect = '';
+        let cursorStyle = 'cursor-default';
+
+        if (spot.isOccupied) {
+          spotColor = 'bg-gray-500/50';
+          cursorStyle = 'cursor-pointer'; // To click existing towers
+        } else if (selectedTowerForMovingId) {
+          spotColor = 'bg-green-300/50'; // Highlight for potential move
+          hoverEffect = 'hover:bg-green-400/70';
+          cursorStyle = 'cursor-pointer';
+        } else if (selectedTowerType) {
+          spotColor = 'bg-blue-300/50'; // Highlight for new placement
+          hoverEffect = 'hover:bg-blue-400/70';
+          cursorStyle = 'cursor-pointer';
+        }
+        
         return (
           <div
             key={spot.id}
-            className={`absolute border border-dashed border-gray-400 transition-colors ${spotColor}`}
+            className={`absolute border border-dashed border-gray-400 transition-colors ${spotColor} ${hoverEffect} ${cursorStyle}`}
             style={{
               left: spot.col * gameConfig.cellSize,
               top: spot.row * gameConfig.cellSize,
@@ -89,7 +110,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
             }}
             onClick={() => handleSpotClick(spot)}
             role="button"
-            aria-label={`Placement spot ${spot.row}, ${spot.col}`}
+            aria-label={`Placement spot ${spot.row}, ${spot.col}${spot.isOccupied ? ', occupied' : ''}`}
           />
         );
       })}
@@ -98,10 +119,13 @@ const GameBoard: React.FC<GameBoardProps> = ({
       {towers.map((tower) => {
         const towerDef = gameConfig.towerTypes[tower.type];
         const levelColor = towerDef.levels[tower.level].color || 'gray';
+        const isSelectedForMoving = tower.id === selectedTowerForMovingId;
+        
         return (
           <div
             key={tower.id}
-            className="absolute rounded-full flex items-center justify-center"
+            className={`absolute rounded-full flex items-center justify-center transition-all duration-150 ease-in-out
+                        ${isSelectedForMoving ? 'ring-4 ring-accent ring-offset-2 ring-offset-background' : ''}`}
             style={{
               left: tower.x - gameConfig.cellSize / 2,
               top: tower.y - gameConfig.cellSize / 2,
@@ -109,20 +133,20 @@ const GameBoard: React.FC<GameBoardProps> = ({
               height: gameConfig.cellSize * 0.8,
               backgroundColor: levelColor,
               border: `3px solid ${levelColor.replace('0.8', '1').replace('0.9','1')}`,
-              boxShadow: '0 0 5px rgba(0,0,0,0.5)',
-              transform: `rotate(${tower.rotation || 0}deg)`,
+              boxShadow: `0 0 5px rgba(0,0,0,0.5)${isSelectedForMoving ? ', 0 0 15px var(--accent)' : ''}`,
+              transform: `rotate(${tower.rotation || 0}deg) scale(${isSelectedForMoving ? 1.1 : 1})`,
               transformOrigin: 'center center',
-              zIndex: 10,
+              zIndex: isSelectedForMoving ? 12 : 10, // Higher z-index if selected for moving
+              cursor: 'pointer',
             }}
             onClick={() => onTowerClick(tower.id)}
             role="button"
-            aria-label={`${towerDef.name} level ${tower.level}`}
+            aria-label={`${towerDef.name} level ${tower.level}${isSelectedForMoving ? ', selected for moving' : ''}`}
           >
             <TowerIcon type={tower.type} sizeClass="w-4/5 h-4/5" />
             <span className="absolute -bottom-1 -right-1 text-xs bg-black/70 text-white rounded-full px-1 leading-tight">
               {tower.level}
             </span>
-             {/* Range indicator for THIS tower when it's the selected one for range display */}
             {showRangeIndicatorForTower?.id === tower.id && (
               <div
                 className="absolute rounded-full bg-blue-500/20 border border-blue-500 pointer-events-none"
@@ -152,11 +176,10 @@ const GameBoard: React.FC<GameBoardProps> = ({
             height: enemy.size,
             backgroundColor: ENEMY_TYPES[enemy.type as keyof typeof ENEMY_TYPES]?.color || 'purple',
             zIndex: 20,
-            transition: 'left 0.1s linear, top 0.1s linear', // Smooth movement
+            transition: 'left 0.1s linear, top 0.1s linear',
           }}
           aria-label={`Enemy ${enemy.type}`}
         >
-          {/* Health Bar */}
           <div className="absolute -top-2 w-full h-1 bg-gray-300 rounded-full overflow-hidden">
             <div
               className="h-full bg-red-500 transition-all duration-100"
@@ -173,7 +196,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
           key={p.id}
           className="absolute rounded-full"
           style={{
-            left: p.x - 3, // 3 is half of projectile size 6
+            left: p.x - 3, 
             top: p.y - 3,
             width: 6,
             height: 6,
@@ -181,19 +204,19 @@ const GameBoard: React.FC<GameBoardProps> = ({
             zIndex: 15,
             transition: 'left 0.05s linear, top 0.05s linear',
           }}
-          aria-hidden="true" // Decorative
+          aria-hidden="true"
         />
       ))}
 
-       {/* Range indicator for tower placement */}
-       {selectedTowerType && placementSpots.some(spot => !spot.isOccupied) && (
+       {/* Range indicator for new tower placement */}
+       {selectedTowerType && !selectedTowerForMovingId && placementSpots.some(spot => !spot.isOccupied) && (
         placementSpots.map(spot => {
           if (!spot.isOccupied) {
-            const tempTowerStats = gameConfig.towerTypes[selectedTowerType].levels[1]; // Show range for level 1
+            const tempTowerStats = gameConfig.towerTypes[selectedTowerType].levels[1]; 
             const spotPx = gridToPixel(spot);
             return (
               <div
-                key={`range-indicator-${spot.id}`}
+                key={`range-indicator-new-${spot.id}`}
                 className="absolute rounded-full bg-blue-500/10 border border-dashed border-blue-500 pointer-events-none"
                 style={{
                   width: tempTowerStats.range * 2,
@@ -210,11 +233,8 @@ const GameBoard: React.FC<GameBoardProps> = ({
           return null;
         })
       )}
-
-
     </div>
   );
 };
 
 export default GameBoard;
-
