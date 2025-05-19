@@ -1,14 +1,13 @@
 
 import type {Metadata} from 'next';
-import { Inter } from 'next/font/google'; // Import Inter font
+// import { Inter } from 'next/font/google'; // Commented out for diagnostics
 import './globals.css';
-import { Toaster } from "@/components/ui/toaster"; // For potential future notifications
+// import { Toaster } from "@/components/ui/toaster"; // Commented out for diagnostics
 
-const inter = Inter({ // Initialize Inter font
-  subsets: ['latin'],
-  variable: '--font-inter', // CSS variable for Inter
-});
-
+// const inter = Inter({ // Commented out for diagnostics
+//   subsets: ['latin'],
+//   variable: '--font-inter',
+// });
 
 export const metadata: Metadata = {
   title: 'Kule Savunma Ustası',
@@ -21,10 +20,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="tr">{/* Changed lang to tr for Turkish */}
-      <body className={`${inter.variable} font-sans antialiased`}> {/* Use inter variable and a generic font-sans class */}
+    <html lang="tr">
+      {/* <body className={`${inter.variable} font-sans antialiased`}> */}
+      <body> {/* Simplified body tag */}
         {children}
-        <Toaster />
+        {/* <Toaster /> */} {/* Commented out for diagnostics */}
       </body>
     </html>
   );
