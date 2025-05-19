@@ -84,13 +84,14 @@ const gameConfig: GameConfig = {
   enemyPath,
   placementSpots,
   towerTypes: TOWER_TYPES,
-  initialGameState: {
+  initialGameState: { // Omit now correctly reflects GameState without lastTickTime
     playerHealth: 20,
     money: 200,
     currentWaveNumber: 0,
     score: 0,
     isGameOver: false,
     gameSpeed: 1,
+    // waveStartTime and gameStatus are handled dynamically in useGameLogic
   },
   waves: [
     { waveNumber: 1, enemies: [{ type: 'goblin', count: 10, spawnDelayMs: 1000, healthMultiplier: 1, speedMultiplier: 1 }], spawnIntervalMs: 1000 },

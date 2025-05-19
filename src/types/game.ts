@@ -84,7 +84,7 @@ export interface GameState {
   placementMode: boolean;
   gameStatus: 'initial' | 'waveInProgress' | 'betweenWaves' | 'gameOver';
   waveStartTime: number | null;
-  lastTickTime: number;
+  // lastTickTime: number; // Removed: Will be managed by a ref
 }
 
 export interface PlacementSpot extends GridPosition {
@@ -99,6 +99,6 @@ export interface GameConfig {
   enemyPath: GridPosition[];
   placementSpots: PlacementSpot[];
   towerTypes: Record<TowerCategory, TowerDefinition>;
-  initialGameState: Omit<GameState, 'selectedTowerType' | 'placementMode' | 'waveStartTime' | 'lastTickTime' | 'gameStatus'>;
+  initialGameState: Omit<GameState, 'selectedTowerType' | 'placementMode' | 'waveStartTime' | 'gameStatus'>; // Removed lastTickTime from Omit
   waves: Wave[];
 }

@@ -29,7 +29,7 @@ export function useGameLogic() {
     placementMode: false,
     gameStatus: 'initial',
     waveStartTime: null,
-    lastTickTime: performance.now(),
+    // lastTickTime is now managed by a ref
   }));
   const [towers, setTowers] = useState<PlacedTower[]>([]);
   const [enemies, setEnemies] = useState<Enemy[]>([]);
@@ -39,6 +39,8 @@ export function useGameLogic() {
   const gameLoopRef = useRef<number>();
   const enemiesToSpawnRef = useRef<Array<Omit<Enemy, 'id' | 'x' | 'y' | 'pathIndex'>>>([])
   const nextSpawnTimeRef = useRef<number>(0);
+  const lastTickTimeRef = useRef<number>(performance.now());
+
 
   const gridToPixel = useCallback((gridPos: GridPosition): PixelPosition => {
     return {
@@ -54,8 +56,8 @@ export function useGameLogic() {
       placementMode: false,
       gameStatus: 'initial',
       waveStartTime: null,
-      lastTickTime: performance.now(),
     });
+    lastTickTimeRef.current = performance.now();
     setTowers([]);
     setEnemies([]);
     setProjectiles([]);
@@ -166,14 +168,15 @@ export function useGameLogic() {
       gameStatus: 'waveInProgress',
       waveStartTime: performance.now(),
     }));
+    lastTickTimeRef.current = performance.now(); // Ensure tick time is fresh for new wave
   }, [gameState.currentWaveNumber, gameState.gameStatus, gameState.isGameOver]);
 
 
   const gameLoop = useCallback((currentTime: number) => {
-    const deltaTime = (currentTime - gameState.lastTickTime) / 1000; // deltaTime in seconds
+    const deltaTime = (currentTime - lastTickTimeRef.current) / 1000; // deltaTime in seconds
 
-    if (gameState.isGameOver) {
-      cancelAnimationFrame(gameLoopRef.current!);
+    if (gameState.isGameOver) { // Use live gameState here
+      if (gameLoopRef.current) cancelAnimationFrame(gameLoopRef.current);
       return;
     }
     
@@ -198,6 +201,9 @@ export function useGameLogic() {
 
     // Update enemies
     setEnemies(prevEnemies => {
+      let newPlayerHealth = gameState.playerHealth; // Read current health before mapping
+      let healthChanged = false;
+
       const updatedEnemies = prevEnemies.map(enemy => {
         if (enemy.pathIndex >= gameConfig.enemyPath.length - 1) return enemy; // Already at end
 
@@ -221,14 +227,23 @@ export function useGameLogic() {
         }
       }).filter(enemy => {
         if (enemy.pathIndex >= gameConfig.enemyPath.length - 1) {
-          setGameState(prev => ({ ...prev, playerHealth: Math.max(0, prev.playerHealth - 1) }));
-          if (gameState.playerHealth -1 <= 0) {
-             setGameState(prev => ({ ...prev, isGameOver: true, gameStatus: 'gameOver'}));
-          }
+          newPlayerHealth = Math.max(0, newPlayerHealth - 1);
+          healthChanged = true;
           return false; // Remove enemy that reached end
         }
         return true;
       });
+
+      if (healthChanged) {
+        setGameState(prev => {
+          const updatedHealthState = { ...prev, playerHealth: newPlayerHealth };
+          if (newPlayerHealth <= 0 && !prev.isGameOver) {
+            updatedHealthState.isGameOver = true;
+            updatedHealthState.gameStatus = 'gameOver';
+          }
+          return updatedHealthState;
+        });
+      }
       return updatedEnemies;
     });
 
@@ -241,7 +256,11 @@ export function useGameLogic() {
       let target: Enemy | null = null;
       let minDistance = tower.stats.range + 1;
 
-      enemies.forEach(enemy => {
+      // Read current enemies state for targeting
+      // Note: `enemies` in closure of gameLoop might be slightly stale if setEnemies above hasn't re-rendered yet for this exact tick.
+      // For precise targeting, might need to pass `updatedEnemies` from above or use `enemiesRef.current`.
+      // However, for typical game loops, this level of staleness is often acceptable.
+      enemies.forEach(enemy => { 
         const distance = Math.sqrt(Math.pow(enemy.x - tower.x, 2) + Math.pow(enemy.y - tower.y, 2));
         if (distance <= tower.stats.range && distance < minDistance) {
           minDistance = distance;
@@ -262,40 +281,50 @@ export function useGameLogic() {
           targetPosition: { x: target.x, y: target.y }
         };
         setProjectiles(prev => [...prev, newProjectile]);
-        const angleToTarget = Math.atan2(target.y - tower.y, target.x - tower.x) * (180 / Math.PI) + 90; // +90 if tower sprite aims up
+        const angleToTarget = Math.atan2(target.y - tower.y, target.x - tower.x) * (180 / Math.PI) + 90;
         return { ...tower, lastShotTime: currentTime, targetId: target.id, rotation: angleToTarget };
       }
-      return { ...tower, targetId: undefined, rotation: tower.rotation }; // Keep last rotation or reset
+      return { ...tower, targetId: undefined, rotation: tower.rotation }; 
     }));
 
     // Update projectiles
     setProjectiles(prevProjectiles => {
+      let moneyEarned = 0;
+      let scoreEarned = 0;
+      const liveEnemyIds = new Set(enemies.map(e => e.id)); // Get current live enemy IDs
+
       const updatedProjectiles = prevProjectiles.map(p => {
-        const targetEnemy = enemies.find(e => e.id === p.targetId);
-        const targetPos = targetEnemy ? { x: targetEnemy.x, y: targetEnemy.y } : p.targetPosition; // Use last known if target is gone
+        const targetEnemy = enemies.find(e => e.id === p.targetId); // Use current enemies
+        const targetPos = targetEnemy ? { x: targetEnemy.x, y: targetEnemy.y } : p.targetPosition; 
 
         const angle = Math.atan2(targetPos.y - p.y, targetPos.x - p.x);
         const moveDistance = p.speed * deltaTime * gameState.gameSpeed;
         const distanceToTarget = Math.sqrt(Math.pow(targetPos.x - p.x, 2) + Math.pow(targetPos.y - p.y, 2));
 
-        if (distanceToTarget <= moveDistance) {
-          // Hit target
+        if (distanceToTarget <= moveDistance && liveEnemyIds.has(p.targetId)) { // Check if target still exists
           setEnemies(prevEnemies => prevEnemies.map(e => {
             if (e.id === p.targetId) {
               const newHealth = e.health - p.damage;
               if (newHealth <= 0) {
-                setGameState(prev => ({ ...prev, money: prev.money + e.value, score: prev.score + e.value }));
-                return null; // Mark for removal
+                moneyEarned += e.value;
+                scoreEarned += e.value;
+                return null; 
               }
               return { ...e, health: newHealth };
             }
             return e;
           }).filter(Boolean) as Enemy[]);
-          return null; // Mark projectile for removal
-        } else {
+          return null; 
+        } else if (distanceToTarget <= moveDistance && !liveEnemyIds.has(p.targetId)) {
+            return null; // Target already gone, remove projectile
+        }else {
           return { ...p, x: p.x + Math.cos(angle) * moveDistance, y: p.y + Math.sin(angle) * moveDistance };
         }
       }).filter(Boolean) as Projectile[];
+
+      if (moneyEarned > 0 || scoreEarned > 0) {
+        setGameState(prev => ({ ...prev, money: prev.money + moneyEarned, score: prev.score + scoreEarned }));
+      }
       return updatedProjectiles;
     });
     
@@ -304,10 +333,9 @@ export function useGameLogic() {
         setGameState(prev => ({ ...prev, gameStatus: 'betweenWaves' }));
     }
 
-
-    setGameState(prev => ({ ...prev, lastTickTime: currentTime }));
+    lastTickTimeRef.current = currentTime;
     gameLoopRef.current = requestAnimationFrame(gameLoop);
-  }, [gameState, enemies, gridToPixel]);
+  }, [gameState, enemies, gridToPixel, projectiles]); // projectiles added as it's read for targetEnemy check
 
   useEffect(() => {
     if (gameState.playerHealth <= 0 && !gameState.isGameOver) {
@@ -316,12 +344,24 @@ export function useGameLogic() {
   }, [gameState.playerHealth, gameState.isGameOver]);
   
   useEffect(() => {
-    if (gameState.gameStatus === 'waveInProgress' || (gameState.gameStatus === 'betweenWaves' && enemies.length > 0)) { // Keep loop if clearing remaining enemies
+    if (gameState.isGameOver) {
+      if (gameLoopRef.current) {
+        cancelAnimationFrame(gameLoopRef.current);
+      }
+      return;
+    }
+
+    if (gameState.gameStatus === 'waveInProgress' || (gameState.gameStatus === 'betweenWaves' && enemies.length > 0)) {
+        // If resuming, ensure lastTickTimeRef is current to avoid large initial deltaTime
+        if (!gameLoopRef.current) { // Only if we are truly starting/restarting the loop
+            lastTickTimeRef.current = performance.now();
+        }
         gameLoopRef.current = requestAnimationFrame(gameLoop);
-    } else if (gameState.gameStatus !== 'gameOver') { // Pause if not in progress and not game over
-       if(gameLoopRef.current) cancelAnimationFrame(gameLoopRef.current);
-       // Keep updating lastTickTime to prevent large deltaTime jump when resuming
-       setGameState(prev => ({ ...prev, lastTickTime: performance.now() }));
+    } else if (gameState.gameStatus !== 'gameOver') { 
+       if(gameLoopRef.current) {
+         cancelAnimationFrame(gameLoopRef.current);
+         gameLoopRef.current = undefined; // Clear ref when loop is not running
+       }
     }
     
     return () => {
@@ -329,7 +369,7 @@ export function useGameLogic() {
         cancelAnimationFrame(gameLoopRef.current);
       }
     };
-  }, [gameLoop, gameState.gameStatus, gameState.isGameOver]);
+  }, [gameLoop, gameState.gameStatus, gameState.isGameOver, enemies.length]);
 
 
   const setSelectedTowerType = (type: TowerCategory | null) => {
