@@ -3,78 +3,78 @@
 @tailwind utilities;
 
 body {
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Inter', sans-serif, Arial, Helvetica, sans-serif; /* Added Inter as primary sans-serif */
 }
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 0 0% 3.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 3.9%;
-    --primary: 0 0% 9%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 0 0% 96.1%;
-    --secondary-foreground: 0 0% 9%;
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
-    --accent: 0 0% 96.1%;
-    --accent-foreground: 0 0% 9%;
+    --background: 125 67% 95%; /* Light Green #E8F5E9 */
+    --foreground: 122 39% 20%; /* Dark Green for text on light green */
+    --card: 125 67% 93%; /* Slightly darker light green for cards */
+    --card-foreground: 122 39% 20%;
+    --popover: 125 67% 90%;
+    --popover-foreground: 122 39% 20%;
+    --primary: 122 39% 40%; /* Forest Green #388E3C */
+    --primary-foreground: 0 0% 100%; /* White */
+    --secondary: 122 30% 70%; /* A lighter, muted green for secondary elements */
+    --secondary-foreground: 122 39% 20%;
+    --muted: 125 50% 88%;
+    --muted-foreground: 122 25% 45%;
+    --accent: 39 100% 50%; /* Amber #FFB300 */
+    --accent-foreground: 0 0% 0%; /* Black for text on accent */
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
-    --ring: 0 0% 3.9%;
+    --border: 122 30% 75%; /* Green-ish border */
+    --input: 122 30% 88%; /* Lighter green for input background for better contrast */
+    --ring: 39 100% 50%; /* Amber for focus ring for consistency with accent */
     --chart-1: 12 76% 61%;
     --chart-2: 173 58% 39%;
     --chart-3: 197 37% 24%;
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
     --radius: 0.5rem;
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+
+    /* Sidebar specific colors, aligned with the new theme */
+    --sidebar-background: 122 39% 25%; /* Darker shade of Forest Green */
+    --sidebar-foreground: 125 67% 90%; /* Lighter Green for text */
+    --sidebar-primary: 39 100% 50%;    /* Amber for active/primary elements */
+    --sidebar-primary-foreground: 0 0% 0%; /* Black text on Amber */
+    --sidebar-accent: 122 39% 30%;     /* Slightly lighter dark green for hover */
+    --sidebar-accent-foreground: 125 67% 95%; /* Lightest Green text on hover */
+    --sidebar-border: 122 39% 20%;     /* Even darker green for borders */
+    --sidebar-ring: 39 100% 50%;       /* Amber for focus rings */
   }
+
   .dark {
-    --background: 0 0% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 0 0% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 0 0% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 0 0% 9%;
-    --secondary: 0 0% 14.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 0 0% 14.9%;
-    --muted-foreground: 0 0% 63.9%;
-    --accent: 0 0% 14.9%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
+    /* TODO: Define a suitable dark theme if needed, for now, keeping defaults or inverting light theme */
+    --background: 122 39% 10%;
+    --foreground: 125 67% 90%;
+    --card: 122 39% 12%;
+    --card-foreground: 125 67% 90%;
+    --popover: 122 39% 8%;
+    --popover-foreground: 125 67% 90%;
+    --primary: 122 39% 50%; /* Brighter Forest Green */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 122 30% 30%;
+    --secondary-foreground: 125 67% 90%;
+    --muted: 122 25% 25%;
+    --muted-foreground: 125 50% 70%;
+    --accent: 39 100% 55%; /* Brighter Amber */
+    --accent-foreground: 0 0% 0%;
+    --destructive: 0 70% 50%;
     --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 14.9%;
-    --input: 0 0% 14.9%;
-    --ring: 0 0% 83.1%;
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --border: 122 30% 25%;
+    --input: 122 30% 20%;
+    --ring: 39 100% 55%;
+
+    --sidebar-background: 122 39% 15%;
+    --sidebar-foreground: 125 67% 85%;
+    --sidebar-primary: 39 100% 55%;
+    --sidebar-primary-foreground: 0 0% 0%;
+    --sidebar-accent: 122 39% 20%;
+    --sidebar-accent-foreground: 125 67% 90%;
+    --sidebar-border: 122 39% 10%;
+    --sidebar-ring: 39 100% 55%;
   }
 }
 
