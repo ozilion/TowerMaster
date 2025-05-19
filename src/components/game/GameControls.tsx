@@ -78,7 +78,7 @@ const GameControls: React.FC<GameControlsProps> = ({
                   key={towerDef.id}
                   variant={isSelectedForPlacement ? 'default' : 'outline'}
                   onClick={() => onSelectTowerType(isSelectedForPlacement ? null : towerDef.id)}
-                  disabled={!canAfford && !isSelectedForPlacement || !!selectedTowerForMovingId || gameState.gameStatus === 'subWaveInProgress' || gameState.gameStatus === 'waitingForNextSubWave'}
+                  disabled={(!canAfford && !isSelectedForPlacement) || !!selectedTowerForMovingId || gameState.isGameOver || gameState.gameStatus === 'gameWon'}
                   className="w-full justify-start h-auto p-2 shadow-sm hover:shadow-md transition-shadow"
                   aria-pressed={isSelectedForPlacement}
                 >
