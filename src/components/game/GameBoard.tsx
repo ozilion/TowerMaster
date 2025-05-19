@@ -3,7 +3,7 @@
 
 import type React from 'react';
 import type { PlacedTower, Enemy, Projectile, PlacementSpot, TowerCategory, GridPosition, PixelPosition } from '@/types/game';
-import gameConfig from '@/config/gameConfig';
+import gameConfig, { ENEMY_TYPES } from '@/config/gameConfig'; // Added ENEMY_TYPES import
 import { Target, Flame, Snowflake, Shield } from 'lucide-react'; // Shield for Simple Tower
 
 interface GameBoardProps {
@@ -217,3 +217,4 @@ const GameBoard: React.FC<GameBoardProps> = ({
 };
 
 export default GameBoard;
+
