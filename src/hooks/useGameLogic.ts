@@ -9,7 +9,6 @@ import { v4 as uuidv4 } from 'uuid';
 const getStatsForLevel = (towerType: TowerCategory, level: 1 | 2 | 3): TowerLevelStats => {
   const definition = TOWER_TYPES[towerType];
   if (!definition) {
-    // console.error(`Tower definition not found for type: ${towerType}`);
     return { level, damage: 1, range: 1, fireRate: 1, projectileSpeed: 100, color: 'grey' };
   }
   const levelStats = definition.levels[level];
@@ -35,35 +34,47 @@ function shuffleArray<T>(array: T[]): T[] {
   return newArray;
 }
 
-const initializeTowerStateForGameLogic = (): { progression: TowerCategory[]; available: TowerCategory[] } => {
+const initializeTowerStateForGame = (): { progression: TowerCategory[]; available: TowerCategory[] } => {
   let progressionSequence: TowerCategory[];
-  const allDefinedTowerIds = [...gameConfig.allTowerIds]; 
-
+  const allDefinedTowerIds = [...gameConfig.allTowerIds];
   const simpleTowerId: TowerCategory = 'simple';
-  const simpleTowerIndex = allDefinedTowerIds.indexOf(simpleTowerId);
   let firstTower: TowerCategory = simpleTowerId;
 
+  const simpleTowerIndex = allDefinedTowerIds.indexOf(simpleTowerId);
   if (simpleTowerIndex !== -1) {
-    allDefinedTowerIds.splice(simpleTowerIndex, 1); 
+    allDefinedTowerIds.splice(simpleTowerIndex, 1);
   } else if (allDefinedTowerIds.length > 0) {
-    firstTower = allDefinedTowerIds[0]; // Fallback if 'simple' isn't defined
+    firstTower = allDefinedTowerIds[0];
     allDefinedTowerIds.splice(0, 1);
   } else {
-    return { progression: [], available: [] }; // No towers defined
+    return { progression: [], available: [] };
   }
 
   const shuffledRemainingTowers = shuffleArray(allDefinedTowerIds);
   progressionSequence = [firstTower, ...shuffledRemainingTowers];
-  
+
   if (progressionSequence.length > gameConfig.maxUnlockableTowers) {
     progressionSequence = progressionSequence.slice(0, gameConfig.maxUnlockableTowers);
   }
   
-  // Ensure 'simple' is in progression if it was defined (already handled by making it firstTower)
-  
-  return { 
-    progression: progressionSequence, 
-    available: [firstTower] // Initially, only the first tower is available
+  // Ensure firstTower (e.g. 'simple') is indeed the first element if it was part of original set
+  if (progressionSequence[0] !== firstTower && gameConfig.allTowerIds.includes(firstTower)) {
+     const ftIndex = progressionSequence.indexOf(firstTower);
+     if (ftIndex > 0) { // if simple is in the list but not first, move it to first
+        progressionSequence.splice(ftIndex, 1);
+        progressionSequence.unshift(firstTower);
+     } else if (ftIndex === -1) { // if simple was somehow excluded but should be there
+        progressionSequence.unshift(firstTower); // Add it
+        if(progressionSequence.length > gameConfig.maxUnlockableTowers) {
+            progressionSequence.pop(); // Keep max size
+        }
+     }
+  }
+
+
+  return {
+    progression: progressionSequence,
+    available: [firstTower], 
   };
 };
 
@@ -72,14 +83,14 @@ export function useGameLogic() {
   const [towers, setTowers] = useState<PlacedTower[]>([]);
   const [enemies, setEnemies] = useState<Enemy[]>([]);
   const [projectiles, setProjectiles] = useState<Projectile[]>([]);
-  const [currentPlacementSpots, setCurrentPlacementSpots] = useState<PlacementSpot[]>(gameConfig.placementSpots.map(ps => ({...ps, isOccupied: false})));
+  const [currentPlacementSpots, setCurrentPlacementSpots] = useState<PlacementSpot[]>(
+    gameConfig.placementSpots.map(ps => ({...ps, isOccupied: false}))
+  );
   
   const initialGameStateSetup = {
     ...gameConfig.initialGameState,
     selectedTowerType: null,
     placementMode: false,
-    waveStartTime: null,
-    // These will be properly initialized client-side by useEffect
     unlockableTowerProgression: [], 
     availableTowerTypes: [],      
   };
@@ -91,9 +102,23 @@ export function useGameLogic() {
   const nextSubWaveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastTickTimeRef = useRef<number>(performance.now());
 
-  // Client-side only initialization for tower progression
+  const gameStateRef = useRef(gameState);
+  useEffect(() => { gameStateRef.current = gameState; }, [gameState]);
+  
+  const towersRef = useRef(towers);
+  useEffect(() => { towersRef.current = towers; }, [towers]);
+
+  const projectilesRef = useRef(projectiles);
+  useEffect(() => { projectilesRef.current = projectiles; }, [projectiles]);
+
+  const enemiesRef = useRef(enemies); // Ensure enemiesRef is defined
+  useEffect(() => { enemiesRef.current = enemies; }, [enemies]); // Keep enemiesRef.current updated
+
+  const placementSpotsRef = useRef(currentPlacementSpots);
+  useEffect(() => { placementSpotsRef.current = currentPlacementSpots; }, [currentPlacementSpots]);
+
   useEffect(() => {
-    const { progression, available } = initializeTowerStateForGameLogic();
+    const { progression, available } = initializeTowerStateForGame();
     setGameState(prev => ({
       ...prev,
       unlockableTowerProgression: progression,
@@ -113,15 +138,14 @@ export function useGameLogic() {
     if (nextSubWaveTimerRef.current) clearTimeout(nextSubWaveTimerRef.current);
     nextSubWaveTimerRef.current = null;
 
-    const { progression, available } = initializeTowerStateForGameLogic();
+    const { progression, available } = initializeTowerStateForGame();
 
     setGameState({
-      ...gameConfig.initialGameState, // Base initial state from config
+      ...gameConfig.initialGameState,
       selectedTowerType: null,
       placementMode: false,
-      waveStartTime: null,
-      unlockableTowerProgression: progression, // Set from client-side logic
-      availableTowerTypes: available,          // Set from client-side logic
+      unlockableTowerProgression: progression, 
+      availableTowerTypes: available,          
     });
     
     setTowers([]);
@@ -135,15 +159,14 @@ export function useGameLogic() {
       cancelAnimationFrame(gameLoopRef.current);
       gameLoopRef.current = undefined;
     }
-    lastTickTimeRef.current = performance.now();
-  }, []); // gridToPixel is stable, no other deps from useGameLogic scope
+  }, []); 
 
   const placeTower = useCallback((spot: PlacementSpot, towerType: TowerCategory) => {
     if (spot.isOccupied) return;
     const definition = TOWER_TYPES[towerType];
     if (!definition) return;
 
-    const currentMoney = gameStateRef.current.money; // Use ref for freshest state
+    const currentMoney = gameStateRef.current.money; 
     if (currentMoney < definition.baseCost) return;
 
     const pixelPos = gridToPixel(spot);
@@ -160,11 +183,11 @@ export function useGameLogic() {
     setTowers(prev => [...prev, newTower]);
     setGameState(prev => ({ ...prev, money: prev.money - definition.baseCost, selectedTowerType: null, placementMode: false }));
     setCurrentPlacementSpots(prevSpots => prevSpots.map(s => s.id === spot.id ? {...s, isOccupied: true} : s));
-  }, [gridToPixel]); // gameState.money accessed via ref, other deps are stable
+  }, [gridToPixel]); 
 
   const attemptMergeTowers = useCallback((tower1Id: string, tower2Id: string): { success: boolean; message: string; resultingTower?: PlacedTower } => {
-    const tower1 = towersRef.current.find(t => t.id === tower1Id); // Use ref
-    const tower2 = towersRef.current.find(t => t.id === tower2Id); // Use ref
+    const tower1 = towersRef.current.find(t => t.id === tower1Id); 
+    const tower2 = towersRef.current.find(t => t.id === tower2Id); 
 
     if (!tower1 || !tower2) return { success: false, message: 'Kulelerden biri veya her ikisi bulunamadı.' };
     if (tower1.type !== tower2.type || tower1.level !== tower2.level) return { success: false, message: 'Kuleler aynı tipte ve aynı seviyede olmalıdır.' };
@@ -174,7 +197,7 @@ export function useGameLogic() {
     const towerDefinition = TOWER_TYPES[tower1.type];
     const mergeCost = towerDefinition.levels[nextLevel].mergeCost || 0;
     
-    const currentMoney = gameStateRef.current.money; // Use ref
+    const currentMoney = gameStateRef.current.money; 
     if (currentMoney < mergeCost) return { success: false, message: `Yetersiz para. Gerekli: ${mergeCost}, Mevcut: ${currentMoney}` };
 
     const newStats = getStatsForLevel(tower1.type, nextLevel);
@@ -183,22 +206,22 @@ export function useGameLogic() {
     setTowers(prevTowers => [mergedTower, ...prevTowers.filter(t => t.id !== tower1Id && t.id !== tower2Id)]);
     setGameState(prev => ({ ...prev, money: prev.money - mergeCost }));
     
-    const spotOfTower2 = placementSpotsRef.current.find(s => { // Use ref
+    const spotOfTower2 = placementSpotsRef.current.find(s => { 
       const spotPx = gridToPixel(s);
       return Math.abs(tower2.x - spotPx.x) < gameConfig.cellSize / 2 && Math.abs(tower2.y - spotPx.y) < gameConfig.cellSize / 2;
     });
     if (spotOfTower2) setCurrentPlacementSpots(prevSpots => prevSpots.map(s => s.id === spotOfTower2.id ? {...s, isOccupied: false} : s));
     
     return { success: true, message: `${towerDefinition.name} Seviye ${nextLevel}'e yükseltildi!`, resultingTower: mergedTower };
-  }, [gridToPixel]); // Refs used for towers, gameState.money, currentPlacementSpots
+  }, [gridToPixel]);
 
   const moveTower = useCallback((towerId: string, newSpotId: string): boolean => {
-    const towerToMove = towersRef.current.find(t => t.id === towerId); // Use ref
-    const newSpot = placementSpotsRef.current.find(s => s.id === newSpotId); // Use ref
+    const towerToMove = towersRef.current.find(t => t.id === towerId); 
+    const newSpot = placementSpotsRef.current.find(s => s.id === newSpotId); 
 
     if (!towerToMove || !newSpot || newSpot.isOccupied) return false;
 
-    const oldSpot = placementSpotsRef.current.find(s => { // Use ref
+    const oldSpot = placementSpotsRef.current.find(s => { 
       const spotPx = gridToPixel(s);
       return Math.abs(towerToMove.x - spotPx.x) < gameConfig.cellSize / 2 && Math.abs(towerToMove.y - spotPx.y) < gameConfig.cellSize / 2;
     });
@@ -212,20 +235,7 @@ export function useGameLogic() {
       return s;
     }));
     return true;
-  }, [gridToPixel]); // Refs used for towers, currentPlacementSpots
-
-
-  const gameStateRef = useRef(gameState);
-  useEffect(() => { gameStateRef.current = gameState; }, [gameState]);
-  
-  const towersRef = useRef(towers);
-  useEffect(() => { towersRef.current = towers; }, [towers]);
-
-  const projectilesRef = useRef(projectiles);
-  useEffect(() => { projectilesRef.current = projectiles; }, [projectiles]);
-
-  const placementSpotsRef = useRef(currentPlacementSpots);
-  useEffect(() => { placementSpotsRef.current = currentPlacementSpots; }, [currentPlacementSpots]);
+  }, [gridToPixel]);
 
 
   const startNextWave = useCallback(() => {
@@ -250,7 +260,6 @@ export function useGameLogic() {
     
     const currentMainWaveConfig = gameConfig.mainWaves[mainWaveIndex];
     if (!currentMainWaveConfig || !currentMainWaveConfig.subWaves[subWaveInMainIndexActual]) {
-      // console.error(`Wave config not found for Main: ${mainWaveIndex + 1}, Sub: ${subWaveInMainIndexActual + 1} (Overall: ${nextOverallSubWaveToProcess})`);
       setGameState(prev => ({ ...prev, gameStatus: prev.currentOverallSubWave >= totalPossibleSubWaves ? 'gameWon' : 'betweenMainWaves' }));
       return;
     }
@@ -259,10 +268,7 @@ export function useGameLogic() {
     const newEnemiesToSpawn: Array<Omit<Enemy, 'id' | 'x' | 'y' | 'pathIndex'>> = [];
     currentSubWaveConfig.enemies.forEach(enemyGroup => {
       const enemyTypeData = ENEMY_TYPES[enemyGroup.type];
-      if (!enemyTypeData) {
-        // console.warn(`Enemy type ${enemyGroup.type} not found in ENEMY_TYPES`);
-        return;
-      }
+      if (!enemyTypeData) return;
       for (let k = 0; k < enemyGroup.count; k++) {
         newEnemiesToSpawn.push({
           type: enemyGroup.type,
@@ -275,22 +281,21 @@ export function useGameLogic() {
       }
     });
     enemiesToSpawnRef.current = newEnemiesToSpawn;
-    nextSpawnTimeRef.current = performance.now() + (currentSubWaveConfig.spawnIntervalMs / currentGS.gameSpeed);
+    nextSpawnTimeRef.current = performance.now(); // Initial spawn can happen almost immediately, gameLoop will check interval
 
     let updatedAvailableTowers = [...currentGS.availableTowerTypes];
     const progression = currentGS.unlockableTowerProgression;
+    const currentMainWaveNumberForUnlock = mainWaveIndex + 1;
 
     if (subWaveInMainIndexActual === 0 && progression.length > 0) { // Start of a new main wave
-        const currentMainWaveNumberForUnlock = mainWaveIndex + 1; // 1-indexed main wave
         const currentUnlockCount = updatedAvailableTowers.length;
         let targetUnlockCount = currentUnlockCount;
 
-        if (currentMainWaveNumberForUnlock === 1 && currentUnlockCount < 1 && progression[0]) { // Game start
-            targetUnlockCount = 1; // Should be the first tower (e.g., 'simple')
-        } else if (currentMainWaveNumberForUnlock === 2 && currentUnlockCount < 3) { // Start of Main Wave 2
+        if (currentMainWaveNumberForUnlock === 1 && currentUnlockCount < 1 && progression[0]) {
+            targetUnlockCount = 1; 
+        } else if (currentMainWaveNumberForUnlock === 2 && currentUnlockCount < Math.min(3, progression.length)) {
             targetUnlockCount = Math.min(3, progression.length);
-        } else if (currentMainWaveNumberForUnlock > 2 && currentUnlockCount < gameConfig.maxUnlockableTowers) {
-            // For MW3+, unlock one more if not maxed out
+        } else if (currentMainWaveNumberForUnlock > 2 && currentUnlockCount < gameConfig.maxUnlockableTowers && currentUnlockCount < progression.length) {
             targetUnlockCount = Math.min(currentUnlockCount + 1, progression.length, gameConfig.maxUnlockableTowers);
         }
         
@@ -303,26 +308,30 @@ export function useGameLogic() {
       ...prev,
       currentOverallSubWave: nextOverallSubWaveToProcess,
       currentMainWaveDisplay: currentMainWaveConfig.mainWaveNumber,
-      currentSubWaveInMainDisplay: currentSubWaveConfig.subWaveInMainIndex + 1, // For 1-indexed display
+      currentSubWaveInMainDisplay: currentSubWaveConfig.subWaveInMainIndex + 1, 
       gameStatus: 'subWaveInProgress',
-      waveStartTime: performance.now(),
       availableTowerTypes: updatedAvailableTowers,
     }));
-  }, [gridToPixel]); 
+
+    // Ensure game loop starts if not already running
+    if (!gameLoopRef.current) {
+      lastTickTimeRef.current = performance.now();
+      gameLoopRef.current = requestAnimationFrame(gameLoop);
+    }
+  }, [gridToPixel, /* gameLoop added further down if needed */ ]); 
 
 
   const gameLoop = useCallback((currentTime: number) => {
     const currentGameState = gameStateRef.current; 
     
     const deltaTime = (currentTime - lastTickTimeRef.current) / 1000 * currentGameState.gameSpeed; 
-    lastTickTimeRef.current = currentTime; 
     
     if (currentGameState.gameStatus === 'subWaveInProgress' && enemiesToSpawnRef.current.length > 0 && currentTime >= nextSpawnTimeRef.current) {
         const enemyToSpawnData = enemiesToSpawnRef.current.shift();
         if (enemyToSpawnData) {
             const startPos = gridToPixel(gameConfig.enemyPath[0]);
             const newEnemy: Enemy = { ...enemyToSpawnData, id: uuidv4(), x: startPos.x, y: startPos.y, pathIndex: 0 };
-            setEnemies(prev => [...prev, newEnemy]);
+            setEnemies(prev => [...prev, newEnemy]); // This will update enemiesRef.current via its useEffect
         }
         if (enemiesToSpawnRef.current.length > 0) { 
             const mainWaveIdx = Math.floor((currentGameState.currentOverallSubWave - 1) / gameConfig.subWavesPerMain);
@@ -447,17 +456,16 @@ export function useGameLogic() {
       return nextProjectilesState.filter(p => !projectilesThatHitOrExpired.has(p.id));
     });
     
-    const finalEnemies = enemiesRef.current;
+    const finalEnemies = enemiesRef.current; // Accessing enemiesRef here
     const finalEnemiesToSpawn = enemiesToSpawnRef.current;
-    const currentGSForTransition = gameStateRef.current; // Use freshest state for transition decisions
+    const currentGSForTransition = gameStateRef.current;
 
     if (currentGSForTransition.gameStatus === 'subWaveInProgress' && finalEnemies.length === 0 && finalEnemiesToSpawn.length === 0) {
         const mainWaveIdx = Math.floor((currentGSForTransition.currentOverallSubWave - 1) / gameConfig.subWavesPerMain);
-        const subWaveIdx = (currentGSForTransition.currentOverallSubWave - 1) % gameConfig.subWavesPerMain; // 0-indexed for array
+        const subWaveIdx = (currentGSForTransition.currentOverallSubWave - 1) % gameConfig.subWavesPerMain;
         const subWaveConf = gameConfig.mainWaves[mainWaveIdx]?.subWaves[subWaveIdx];
 
-        // Check if it's the last sub-wave of the current main wave
-        if (subWaveConf && (subWaveIdx + 1) < gameConfig.subWavesPerMain) { // subWaveIdx is 0-indexed, subWavesPerMain is count
+        if (subWaveConf && (subWaveIdx + 1) < gameConfig.subWavesPerMain) { 
             setGameState(prev => ({ ...prev, gameStatus: 'waitingForNextSubWave' }));
             if (nextSubWaveTimerRef.current) clearTimeout(nextSubWaveTimerRef.current);
             nextSubWaveTimerRef.current = setTimeout(() => {
@@ -474,6 +482,8 @@ export function useGameLogic() {
         }
     }
     
+    lastTickTimeRef.current = currentTime; 
+
     const stateAfterFrameLogic = gameStateRef.current;
     const shouldContinueLooping = (
         stateAfterFrameLogic.gameStatus === 'subWaveInProgress' ||
@@ -490,19 +500,21 @@ export function useGameLogic() {
 
   useEffect(() => {
     const currentGameState = gameStateRef.current;
-    const shouldLoopBeRunning = (
-        currentGameState.gameStatus === 'subWaveInProgress' ||
-        currentGameState.gameStatus === 'waitingForNextSubWave' ||
-        (projectilesRef.current.length > 0 && !currentGameState.isGameOver && currentGameState.gameStatus !== 'gameWon')
-    );
+    let loopShouldBeRunning = false;
 
-    if (shouldLoopBeRunning) {
-        if (!gameLoopRef.current) { 
-            lastTickTimeRef.current = performance.now();
+    if (currentGameState.gameStatus === 'subWaveInProgress' || currentGameState.gameStatus === 'waitingForNextSubWave') {
+        loopShouldBeRunning = true;
+    } else if (projectilesRef.current.length > 0 && !currentGameState.isGameOver && currentGameState.gameStatus !== 'gameWon') {
+        loopShouldBeRunning = true;
+    }
+
+    if (loopShouldBeRunning) {
+        if (!gameLoopRef.current) {
+            lastTickTimeRef.current = performance.now(); // Set time before starting loop
             gameLoopRef.current = requestAnimationFrame(gameLoop);
         }
-    } else { 
-        if (gameLoopRef.current) { 
+    } else {
+        if (gameLoopRef.current) {
             cancelAnimationFrame(gameLoopRef.current);
             gameLoopRef.current = undefined;
         }
@@ -518,7 +530,7 @@ export function useGameLogic() {
         nextSubWaveTimerRef.current = null;
       }
     };
-  }, [gameState.gameStatus, gameState.isGameOver, gameState.gameSpeed, projectiles.length, gameLoop]);
+  }, [gameState.gameStatus, gameState.isGameOver, gameState.gameSpeed, gameLoop]);
 
 
   useEffect(() => {
