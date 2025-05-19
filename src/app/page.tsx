@@ -8,10 +8,28 @@ import GameControls from '@/components/game/GameControls';
 import GameOverScreen from '@/components/game/GameOverScreen';
 import InstructionsModal from '@/components/game/InstructionsModal';
 import { useGameLogic } from '@/hooks/useGameLogic';
-import type { PlacedTower, TowerCategory, PlacementSpot } from '@/types/game';
+import type { PlacedTower, TowerCategory, PlacementSpot, GameState } from '@/types/game'; // Added GameState
 import { Heart, Coins, Layers, Award } from 'lucide-react'; 
-import gameConfig from '@/config/gameConfig';
+import gameConfig from '@/config/gameConfig'; // Ensured import
 import { useToast } from '@/hooks/use-toast';
+import { Button } from '@/components/ui/button'; // For potential GameWon screen
+
+// Game Won Screen Component (Simple version, can be expanded)
+const GameWonScreen: React.FC<{ isOpen: boolean; score: number; onRestart: () => void }> = ({ isOpen, score, onRestart }) => {
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+      <div className="bg-card text-card-foreground p-8 rounded-lg shadow-2xl text-center">
+        <h2 className="text-3xl font-bold text-primary mb-4">Tebrikler, Oyunu Kazandın!</h2>
+        <p className="text-xl mb-6">Skorun: <span className="font-semibold text-accent">{score}</span></p>
+        <Button onClick={onRestart} className="bg-primary text-primary-foreground hover:bg-primary/90 text-lg py-3 px-6">
+          Yeniden Başlat
+        </Button>
+      </div>
+    </div>
+  );
+};
+
 
 export default function KuleSavunmaPage() {
   const {
@@ -36,7 +54,6 @@ export default function KuleSavunmaPage() {
   const [selectedTowerForMovingId, setSelectedTowerForMovingId] = useState<string | null>(null);
   const [showRangeIndicatorForTower, setShowRangeIndicatorForTower] = useState<PlacedTower | null>(null);
 
-
   const handleTowerSelectionForPlacement = (type: TowerCategory | null) => {
     setSelectedTowerType(type);
     setFirstSelectedTowerForMerge(null); 
@@ -48,67 +65,44 @@ export default function KuleSavunmaPage() {
     const clickedTower = towers.find(t => t.id === towerId);
     if (!clickedTower) return;
 
-    // Always show range for the clicked tower first
     setShowRangeIndicatorForTower(clickedTower);
-    setSelectedTowerType(null); // Clear new tower placement selection
+    setSelectedTowerType(null);
 
-    if (firstSelectedTowerForMerge === towerId) { // Clicked the same tower again (already selected for merge/move)
+    if (firstSelectedTowerForMerge === towerId) {
         setFirstSelectedTowerForMerge(null);
         setSelectedTowerForMovingId(null);
-        // setShowRangeIndicatorForTower(null); // Deselect, clear range
-    } else if (firstSelectedTowerForMerge) { // A different tower was selected (T1), now clicking T2 (towerId)
-        const firstTowerOriginal = towers.find(t => t.id === firstSelectedTowerForMerge); // For reverting range indicator on fail
+    } else if (firstSelectedTowerForMerge) {
+        const firstTowerOriginal = towers.find(t => t.id === firstSelectedTowerForMerge);
         const mergeResult = attemptMergeTowers(firstSelectedTowerForMerge, towerId);
         
         if (mergeResult.success && mergeResult.resultingTower) {
             setShowRangeIndicatorForTower(mergeResult.resultingTower); 
-            toast({
-                title: "Kule Birleştirildi!",
-                description: mergeResult.message,
-            });
+            toast({ title: "Kule Birleştirildi!", description: mergeResult.message });
         } else {
-            toast({
-                title: "Birleştirme Başarısız",
-                description: mergeResult.message,
-                variant: "destructive",
-            });
-            // On failure, revert range indicator to the first selected tower.
+            toast({ title: "Birleştirme Başarısız", description: mergeResult.message, variant: "destructive" });
             setShowRangeIndicatorForTower(firstTowerOriginal || null);
         }
         setFirstSelectedTowerForMerge(null); 
         setSelectedTowerForMovingId(null);
-    } else { // No tower was previously selected for merge/move. This is the first click.
+    } else {
         setFirstSelectedTowerForMerge(towerId); 
         setSelectedTowerForMovingId(towerId); 
-        // Range indicator already set for clickedTower at the start of the function
     }
   };
 
   const handleMoveTowerRequest = (towerId: string, spot: PlacementSpot) => {
     const success = moveTower(towerId, spot.id);
-    if (success) {
-      // After successful move, find the tower in the new 'towers' array to get its updated state
-      // This might require a brief delay or a way to get the tower's new state directly from moveTower if it were to return it
-      const movedTower = towers.find(t => t.id === towerId); // This will be from the current render cycle, might not be updated yet
-      // To be safe, it's better to find it after next render or if moveTower returns the updated tower
-      // For now, we optimistically assume it's found or null.
-      setShowRangeIndicatorForTower(movedTower || null);
-      toast({
-        title: "Kule Taşındı!",
-        description: `${movedTower?.type || 'Kule'} yeni yerine taşındı.`,
-      });
+    const movedTower = towers.find(t => t.id === towerId); 
+    if (success && movedTower) {
+      setShowRangeIndicatorForTower(movedTower);
+      toast({ title: "Kule Taşındı!", description: `${movedTower.type || 'Kule'} yeni yerine taşındı.` });
     } else {
-      toast({
-        title: "Taşıma Başarısız",
-        description: "Kule bu noktaya taşınamadı.",
-        variant: "destructive",
-      });
+      toast({ title: "Taşıma Başarısız", description: "Kule bu noktaya taşınamadı.", variant: "destructive" });
     }
     setSelectedTowerForMovingId(null);
     setFirstSelectedTowerForMerge(null);
   };
 
-  // Reset selections if player selects a new tower type for placement
   useEffect(() => {
     if (gameState.selectedTowerType) {
       setFirstSelectedTowerForMerge(null);
@@ -116,15 +110,25 @@ export default function KuleSavunmaPage() {
     }
   }, [gameState.selectedTowerType]);
 
-  // Reset selections if game over
   useEffect(() => {
-    if (gameState.isGameOver) {
+    if (gameState.isGameOver || gameState.gameStatus === 'gameWon') {
       setFirstSelectedTowerForMerge(null);
       setSelectedTowerForMovingId(null);
       setShowRangeIndicatorForTower(null);
     }
-  }, [gameState.isGameOver]);
+  }, [gameState.isGameOver, gameState.gameStatus]);
 
+  const getWaveButtonText = () => {
+    if (gameState.gameStatus === 'initial') return 'Oyunu Başlat';
+    if (gameState.gameStatus === 'betweenMainWaves') {
+        if (gameState.currentMainWaveDisplay >= gameConfig.totalMainWaves) return 'Oyun Bitti'; // Should be gameWon
+        return `Ana Dalga ${gameState.currentMainWaveDisplay + 1} Başlat`;
+    }
+    if (gameState.gameStatus === 'subWaveInProgress' || gameState.gameStatus === 'waitingForNextSubWave') {
+        return `Dalga ${gameState.currentMainWaveDisplay} - ${gameState.currentSubWaveInMainDisplay} / ${gameConfig.subWavesPerMain}`;
+    }
+    return 'Dalga Başlat';
+  };
 
   return (
     <SidebarProvider>
@@ -140,7 +144,9 @@ export default function KuleSavunmaPage() {
           </div>
           <div className="flex items-center gap-2" title="Dalga">
             <Layers className="w-6 h-6 text-blue-300" />
-            <span className="text-lg font-semibold">{gameState.currentWaveNumber} / {gameConfig.waves.length}</span>
+            <span className="text-sm font-semibold">
+                Ana: {gameState.currentMainWaveDisplay} / {gameConfig.totalMainWaves} | Alt: {gameState.currentSubWaveInMainDisplay} / {gameConfig.subWavesPerMain}
+            </span>
           </div>
            <div className="flex items-center gap-2" title="Skor">
             <Award className="w-6 h-6 text-green-300" />
@@ -165,15 +171,12 @@ export default function KuleSavunmaPage() {
                 gameState={gameState}
                 onStartWave={startNextWave}
                 onSelectTowerType={handleTowerSelectionForPlacement}
-                onResetGame={() => {
-                  resetGame();
-                  setFirstSelectedTowerForMerge(null);
-                  setSelectedTowerForMovingId(null);
-                  setShowRangeIndicatorForTower(null);
-                }}
+                onResetGame={() => { resetGame(); }}
                 selectedPlacedTower={showRangeIndicatorForTower}
                 selectedTowerForMovingId={selectedTowerForMovingId}
                 onShowInstructions={() => setIsInstructionsOpen(true)}
+                waveButtonText={getWaveButtonText()}
+                availableTowerTypes={gameState.availableTowerTypes}
               />
             </SidebarContent>
           </Sidebar>
@@ -200,12 +203,12 @@ export default function KuleSavunmaPage() {
         <GameOverScreen
           isOpen={gameState.isGameOver}
           score={gameState.score}
-          onRestart={() => {
-            resetGame();
-            setFirstSelectedTowerForMerge(null);
-            setSelectedTowerForMovingId(null);
-            setShowRangeIndicatorForTower(null);
-          }}
+          onRestart={() => { resetGame(); }}
+        />
+        <GameWonScreen
+          isOpen={gameState.gameStatus === 'gameWon'}
+          score={gameState.score}
+          onRestart={() => { resetGame(); }}
         />
         <InstructionsModal
           isOpen={isInstructionsOpen}
@@ -215,4 +218,3 @@ export default function KuleSavunmaPage() {
     </SidebarProvider>
   );
 }
-
