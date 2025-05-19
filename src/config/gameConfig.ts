@@ -78,8 +78,7 @@ export const TOWER_TYPES: Record<TowerCategory, TowerDefinition> = {
 };
 
 export const ALL_TOWER_IDS: TowerCategory[] = ['simple', 'fire', 'ice', 'laser', 'cannon'];
-export const MAX_UNLOCKABLE_TOWERS = 4;
-
+export const MAX_UNLOCKABLE_TOWERS = 4; // Max kule tipi sayısı
 
 export const ENEMY_TYPES: Record<EnemyType, { baseHealth: number; baseSpeed: number; baseValue: number; color: string; size: number }> = {
   goblin: { baseHealth: 50, baseSpeed: 50, baseValue: 5, color: 'rgba(0,128,0,0.8)', size: CELL_SIZE * 0.4 },
@@ -88,9 +87,9 @@ export const ENEMY_TYPES: Record<EnemyType, { baseHealth: number; baseSpeed: num
   boss: { baseHealth: 2000, baseSpeed: 25, baseValue: 100, color: 'rgba(255,0,0,0.9)', size: CELL_SIZE * 0.8 },
 };
 
-const initialGameStateValues: Omit<InitialGameStateConfig, 'unlockableTowerProgression' | 'availableTowerTypes'> = {
+const initialGameStateValues: InitialGameStateConfig = {
   playerHealth: 100,
-  money: 200,
+  money: 200, // Starting money
   score: 0,
   gameSpeed: 1,
   gameStatus: 'initial' as const,
@@ -113,32 +112,33 @@ const generateWaves = (totalMainWaves: number, subWavesPerMain: number): MainWav
     const subWaves: SubWave[] = [];
     const baseHealthMultiplier = 1 + (i - 1) * 0.20; 
     const baseSpeedMultiplier = 1 + (i - 1) * 0.03;  
-    const baseValueMultiplier = 1 + (i - 1) * 0.1;
+    // const baseValueMultiplier = 1 + (i - 1) * 0.1; // Not currently used for enemy value scaling
 
     for (let j = 1; j <= subWavesPerMain; j++) {
-      const enemies: SubWaveEnemyConfig[] = [];
-      let enemyCount = Math.floor(3 + (i-1) * 0.5 + (j-1) * 0.2); 
-      enemyCount = Math.max(3, Math.min(enemyCount, 15)); 
+      const enemiesForSubWave: SubWaveEnemyConfig[] = [];
+      // Enemy count scales with main wave and sub-wave, with a cap
+      let enemyCount = Math.floor(3 + (i - 1) * 0.5 + (j - 1) * 0.2);
+      enemyCount = Math.max(3, Math.min(enemyCount, 15)); // Min 3, Max 15 enemies
 
-      const enemyTypesThisWave: EnemyType[] = ['goblin'];
-      if (i > 2 || (i === 2 && j > 5)) enemyTypesThisWave.push('orc'); // Orcs appear from main wave 2, sub-wave 6 or main wave 3+
-      if (i > 5 || (i === 5 && j > 5)) enemyTypesThisWave.push('troll'); // Trolls appear from main wave 5, sub-wave 6 or main wave 6+
+      const enemyTypesAvailableThisWave: EnemyType[] = ['goblin'];
+      if (i > 2 || (i === 2 && j > subWavesPerMain / 2)) enemyTypesAvailableThisWave.push('orc');
+      if (i > 5 || (i === 5 && j > subWavesPerMain / 2)) enemyTypesAvailableThisWave.push('troll');
       
       if (i % 10 === 0 && j === subWavesPerMain) { // Every 10th main wave, last sub-wave is a boss
-        enemies.push({ type: 'boss', count: 1, healthMultiplierOverride: baseHealthMultiplier * 1.5, speedMultiplierOverride: baseSpeedMultiplier * 0.8 });
+        enemiesForSubWave.push({ type: 'boss', count: 1, healthMultiplierOverride: baseHealthMultiplier * 1.5, speedMultiplierOverride: baseSpeedMultiplier * 0.8 });
       } else {
          for (let k = 0; k < enemyCount; k++) {
-            const randomEnemyType = enemyTypesThisWave[Math.floor(Math.random() * enemyTypesThisWave.length)];
-            enemies.push({ type: randomEnemyType, count: 1 }); 
+            const randomEnemyType = enemyTypesAvailableThisWave[Math.floor(Math.random() * enemyTypesAvailableThisWave.length)];
+            enemiesForSubWave.push({ type: randomEnemyType, count: 1 }); // Add one enemy of this type
         }
       }
       
       subWaves.push({
         id: `main${i}-sub${j}`,
         subWaveInMainIndex: j,
-        enemies: enemies.flatMap(config => Array(config.count).fill({...config, count: 1})), 
-        spawnIntervalMs: Math.max(300, 1200 - (i * 15) - (j * 8)), 
-        postSubWaveDelayMs: Math.max(1500, 3000 - (i * 25)), 
+        enemies: enemiesForSubWave, 
+        spawnIntervalMs: Math.max(300, 1500 - (i * 20) - (j * 10)), // Spawn interval decreases with waves
+        postSubWaveDelayMs: Math.max(1500, 3500 - (i * 30)), // Delay decreases, min 1.5s
       });
     }
     mainWaves.push({
@@ -151,7 +151,6 @@ const generateWaves = (totalMainWaves: number, subWavesPerMain: number): MainWav
   return mainWaves;
 };
 
-
 const gameConfig: GameConfig = {
   gridRows: GRID_ROWS,
   gridCols: GRID_COLS,
@@ -160,11 +159,7 @@ const gameConfig: GameConfig = {
   placementSpots: PLACEMENT_SPOTS,
   towerTypes: TOWER_TYPES,
   enemyTypes: ENEMY_TYPES,
-  initialGameState: {
-    ...initialGameStateValues,
-    unlockableTowerProgression: [], // To be set by useGameLogic on client
-    availableTowerTypes: [],       // To be set by useGameLogic on client
-  },
+  initialGameState: initialGameStateValues,
   mainWaves: generateWaves(TOTAL_MAIN_WAVES, SUB_WAVES_PER_MAIN),
   totalMainWaves: TOTAL_MAIN_WAVES,
   subWavesPerMain: SUB_WAVES_PER_MAIN,
@@ -173,4 +168,3 @@ const gameConfig: GameConfig = {
 };
 
 export default gameConfig;
-

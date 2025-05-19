@@ -28,7 +28,7 @@ export interface TowerLevelStats {
 export interface TowerDefinition {
   id: TowerCategory;
   name: string;
-  icon: LucideIcon; // Icon is now mandatory
+  icon: LucideIcon; // Icon is now mandatory again
   baseCost: number;
   levels: {
     1: Omit<TowerLevelStats, 'level' | 'mergeCost'>;
@@ -81,6 +81,7 @@ export interface MainWave {
   baseSpeedMultiplier: number;
   subWaves: SubWave[]; 
 }
+
 export interface GameState {
   playerHealth: number;
   money: number;
@@ -103,8 +104,7 @@ export interface InitialGameStateConfig {
   money: number;
   score: number;
   gameSpeed: number;
-  gameStatus: 'initial'; // Keep this fixed for initial config
-  // These will be initialized by the hook on client-side or have specific starting values
+  gameStatus: 'initial';
   currentOverallSubWave: number;
   currentMainWaveDisplay: number;
   currentSubWaveInMainDisplay: number;
@@ -112,8 +112,9 @@ export interface InitialGameStateConfig {
   placementMode: boolean;
   isGameOver: boolean;
   waveStartTime: number;
-  unlockableTowerProgression: TowerCategory[]; // Empty, will be set by useGameLogic
-  availableTowerTypes: TowerCategory[];      // Empty or ['simple'], will be set by useGameLogic
+  // These are initialized client-side by useGameLogic
+  // unlockableTowerProgression: TowerCategory[]; 
+  // availableTowerTypes: TowerCategory[];      
 }
 
 
@@ -136,4 +137,16 @@ export interface GameConfig {
   subWavesPerMain: number;
   allTowerIds: TowerCategory[];
   maxUnlockableTowers: number; 
+}
+
+// Props for local components in page.tsx
+export interface GameEndScreenProps {
+  isOpen: boolean;
+  score: number;
+  onRestart: () => void;
+}
+
+export interface InstructionsModalProps {
+  isOpen: boolean;
+  onClose: () => void;
 }
