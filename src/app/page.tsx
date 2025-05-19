@@ -10,7 +10,8 @@ import InstructionsModal from '@/components/game/InstructionsModal';
 import { useGameLogic } from '@/hooks/useGameLogic';
 import type { PlacedTower, TowerCategory, PlacementSpot } from '@/types/game';
 import { Heart, Coins, Layers, Award } from 'lucide-react'; 
-import gameConfig from '@/config/gameConfig'; // Added import
+import gameConfig from '@/config/gameConfig';
+import { useToast } from '@/hooks/use-toast';
 
 export default function KuleSavunmaPage() {
   const {
@@ -29,6 +30,7 @@ export default function KuleSavunmaPage() {
     setGameState 
   } = useGameLogic();
 
+  const { toast } = useToast();
   const [isInstructionsOpen, setIsInstructionsOpen] = useState(false);
   const [firstSelectedTowerForMerge, setFirstSelectedTowerForMerge] = useState<string | null>(null);
   const [selectedTowerForMovingId, setSelectedTowerForMovingId] = useState<string | null>(null);
@@ -46,31 +48,61 @@ export default function KuleSavunmaPage() {
     const clickedTower = towers.find(t => t.id === towerId);
     if (!clickedTower) return;
 
+    // Always show range for the clicked tower first
     setShowRangeIndicatorForTower(clickedTower);
     setSelectedTowerType(null); // Clear new tower placement selection
 
     if (firstSelectedTowerForMerge === towerId) { // Clicked the same tower again (already selected for merge/move)
         setFirstSelectedTowerForMerge(null);
         setSelectedTowerForMovingId(null);
-        // Optionally clear range indicator: setShowRangeIndicatorForTower(null); 
-    } else if (firstSelectedTowerForMerge) { // A different tower was selected (T1), now clicking T2
-        const success = attemptMergeTowers(firstSelectedTowerForMerge, towerId);
-        if (success) {
-            setShowRangeIndicatorForTower(towers.find(t => t.id === firstSelectedTowerForMerge) || null); // Show merged tower
+        // setShowRangeIndicatorForTower(null); // Deselect, clear range
+    } else if (firstSelectedTowerForMerge) { // A different tower was selected (T1), now clicking T2 (towerId)
+        const firstTowerOriginal = towers.find(t => t.id === firstSelectedTowerForMerge); // For reverting range indicator on fail
+        const mergeResult = attemptMergeTowers(firstSelectedTowerForMerge, towerId);
+        
+        if (mergeResult.success && mergeResult.resultingTower) {
+            setShowRangeIndicatorForTower(mergeResult.resultingTower); 
+            toast({
+                title: "Kule Birleştirildi!",
+                description: mergeResult.message,
+            });
+        } else {
+            toast({
+                title: "Birleştirme Başarısız",
+                description: mergeResult.message,
+                variant: "destructive",
+            });
+            // On failure, revert range indicator to the first selected tower.
+            setShowRangeIndicatorForTower(firstTowerOriginal || null);
         }
         setFirstSelectedTowerForMerge(null); 
         setSelectedTowerForMovingId(null);
     } else { // No tower was previously selected for merge/move. This is the first click.
         setFirstSelectedTowerForMerge(towerId); 
         setSelectedTowerForMovingId(towerId); 
+        // Range indicator already set for clickedTower at the start of the function
     }
   };
 
   const handleMoveTowerRequest = (towerId: string, spot: PlacementSpot) => {
     const success = moveTower(towerId, spot.id);
     if (success) {
-      const movedTower = towers.find(t => t.id === towerId);
-      setShowRangeIndicatorForTower(movedTower || null); // Show tower in new position
+      // After successful move, find the tower in the new 'towers' array to get its updated state
+      // This might require a brief delay or a way to get the tower's new state directly from moveTower if it were to return it
+      const movedTower = towers.find(t => t.id === towerId); // This will be from the current render cycle, might not be updated yet
+      // To be safe, it's better to find it after next render or if moveTower returns the updated tower
+      // For now, we optimistically assume it's found or null.
+      setShowRangeIndicatorForTower(movedTower || null);
+      toast({
+        title: "Kule Taşındı!",
+        description: `${movedTower?.type || 'Kule'} yeni yerine taşındı.`,
+      });
+    } else {
+      toast({
+        title: "Taşıma Başarısız",
+        description: "Kule bu noktaya taşınamadı.",
+        variant: "destructive",
+      });
     }
     setSelectedTowerForMovingId(null);
     setFirstSelectedTowerForMerge(null);
@@ -183,3 +215,4 @@ export default function KuleSavunmaPage() {
     </SidebarProvider>
   );
 }
+

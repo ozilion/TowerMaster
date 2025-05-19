@@ -33,7 +33,7 @@ export function useGameLogic() {
   const [towers, setTowers] = useState<PlacedTower[]>([]);
   const [enemies, setEnemies] = useState<Enemy[]>([]);
   const [projectiles, setProjectiles] = useState<Projectile[]>([]);
-  const [currentPlacementSpots, setCurrentPlacementSpots] = useState<PlacementSpot[]>(gameConfig.placementSpots);
+  const [currentPlacementSpots, setCurrentPlacementSpots] = useState<PlacementSpot[]>(gameConfig.placementSpots.map(ps => ({...ps, isOccupied: false})));
 
   const gameLoopRef = useRef<number>();
   const enemiesToSpawnRef = useRef<Array<Omit<Enemy, 'id' | 'x' | 'y' | 'pathIndex'>>>([])
@@ -90,46 +90,59 @@ export function useGameLogic() {
     setCurrentPlacementSpots(prevSpots => prevSpots.map(s => s.id === spot.id ? {...s, isOccupied: true} : s));
   }, [gameState.money, gridToPixel]);
 
-  const attemptMergeTowers = useCallback((tower1Id: string, tower2Id: string) => {
+  const attemptMergeTowers = useCallback((tower1Id: string, tower2Id: string): { success: boolean; message: string; resultingTower?: PlacedTower } => {
     const tower1 = towers.find(t => t.id === tower1Id);
     const tower2 = towers.find(t => t.id === tower2Id);
 
-    if (!tower1 || !tower2 || tower1.type !== tower2.type || tower1.level !== tower2.level || tower1.level >= 3) {
-      console.log("Merge failed: conditions not met.");
-      return false;
+    if (!tower1 || !tower2) {
+      return { success: false, message: 'Kulelerden biri veya her ikisi bulunamadı.' };
+    }
+    if (tower1.type !== tower2.type || tower1.level !== tower2.level) {
+      return { success: false, message: 'Kuleler aynı tipte ve aynı seviyede olmalıdır.' };
+    }
+    if (tower1.level >= 3) {
+      return { success: false, message: 'Kule zaten maksimum seviyede (Seviye 3).' };
     }
 
     const nextLevel = (tower1.level + 1) as 2 | 3;
-    const mergeCost = TOWER_TYPES[tower1.type].levels[nextLevel].mergeCost || 0;
+    const towerDefinition = TOWER_TYPES[tower1.type];
+    const mergeCost = towerDefinition.levels[nextLevel].mergeCost || 0;
 
     if (gameState.money < mergeCost) {
-      console.log("Merge failed: not enough money.");
-      return false;
+      return { success: false, message: `Yetersiz para. Gerekli: ${mergeCost}, Mevcut: ${gameState.money}` };
     }
 
     const newStats = getStatsForLevel(tower1.type, nextLevel);
     const mergedTower: PlacedTower = {
-      ...tower1, // Keep position of tower1
+      ...tower1, // Keep position and ID of tower1
       level: nextLevel,
       stats: newStats,
+      lastShotTime: 0, // Reset attack cooldown for the new upgraded tower
     };
     
     setTowers(prevTowers => [mergedTower, ...prevTowers.filter(t => t.id !== tower1Id && t.id !== tower2Id)]);
     setGameState(prev => ({ ...prev, money: prev.money - mergeCost }));
     
     // Free up the spot of the tower that was "consumed" (tower2)
-    const spot2 = currentPlacementSpots.find(s => {
+    const spotOfTower2 = currentPlacementSpots.find(s => {
       const spotPx = gridToPixel(s);
-      return Math.abs(tower2.x - spotPx.x) < gameConfig.cellSize / 2 && Math.abs(tower2.y - spotPx.y) < gameConfig.cellSize / 2;
+      // Check if tower2's coordinates match the center of this spot
+      return Math.abs(tower2.x - spotPx.x) < gameConfig.cellSize / 2 && 
+             Math.abs(tower2.y - spotPx.y) < gameConfig.cellSize / 2;
     });
     
-    if (spot2) { 
-       setCurrentPlacementSpots(prevSpots => prevSpots.map(s => s.id === spot2.id ? {...s, isOccupied: false} : s));
+    if (spotOfTower2) { 
+       setCurrentPlacementSpots(prevSpots => prevSpots.map(s => s.id === spotOfTower2.id ? {...s, isOccupied: false} : s));
+    } else {
+        // This case should ideally not happen if tower2 was on a valid spot.
+        console.warn(`Could not find placement spot for consumed tower ${tower2.id} to free up.`);
     }
-    // spot1 (where tower1 was, now mergedTower is) remains occupied.
-
-    console.log(`Tower merged to level ${nextLevel}!`);
-    return true;
+    
+    return { 
+      success: true, 
+      message: `${towerDefinition.name} Seviye ${nextLevel}'e yükseltildi!`, 
+      resultingTower: mergedTower 
+    };
   }, [towers, gameState.money, currentPlacementSpots, gridToPixel]);
 
   const moveTower = useCallback((towerId: string, newSpotId: string): boolean => {
@@ -152,14 +165,6 @@ export function useGameLogic() {
       return false;
     }
     
-    // Optional: Add a cost for moving
-    // const moveCost = 10; 
-    // if (gameState.money < moveCost) {
-    //   console.log("Move failed: not enough money.");
-    //   return false;
-    // }
-    // setGameState(prev => ({ ...prev, money: prev.money - moveCost }));
-
     const newPixelPos = gridToPixel(newSpot);
     setTowers(prevTowers => prevTowers.map(t =>
       t.id === towerId ? { ...t, x: newPixelPos.x, y: newPixelPos.y } : t
@@ -170,8 +175,6 @@ export function useGameLogic() {
       if (s.id === newSpot.id) return { ...s, isOccupied: true };
       return s;
     }));
-
-    console.log(`Tower ${towerId} moved to spot ${newSpotId}`);
     return true;
   }, [towers, currentPlacementSpots, gridToPixel, gameState.money]);
 
@@ -183,8 +186,8 @@ export function useGameLogic() {
     const waveData = gameConfig.waves.find(w => w.waveNumber === nextWaveNumber);
 
     if (!waveData) {
-      console.log("All waves completed!");
-      setGameState(prev => ({ ...prev, gameStatus: 'initial' })); 
+      // Potentially game won state or just no more waves defined
+      setGameState(prev => ({ ...prev, gameStatus: 'initial' })); // Or 'gameWon'
       return;
     }
     
@@ -212,7 +215,7 @@ export function useGameLogic() {
     const initialDelay = typeof firstEnemyGroup?.spawnDelayMs === 'number' 
                          ? firstEnemyGroup.spawnDelayMs 
                          : waveData.spawnIntervalMs;
-    nextSpawnTimeRef.current = performance.now() + initialDelay;
+    nextSpawnTimeRef.current = performance.now() + initialDelay / gameState.gameSpeed;
 
 
     setGameState(prev => ({
@@ -221,7 +224,7 @@ export function useGameLogic() {
       gameStatus: 'waveInProgress',
       waveStartTime: performance.now(),
     }));
-  }, [gameState.currentWaveNumber, gameState.gameStatus, gameState.isGameOver]);
+  }, [gameState.currentWaveNumber, gameState.gameStatus, gameState.isGameOver, gameState.gameSpeed]);
 
 
   const gameLoop = useCallback((currentTime: number) => {
@@ -261,7 +264,7 @@ export function useGameLogic() {
         const targetPixelPos = gridToPixel(targetGridPos);
         const angle = Math.atan2(targetPixelPos.y - enemy.y, targetPixelPos.x - enemy.x);
         const distanceToTarget = Math.sqrt(Math.pow(targetPixelPos.x - enemy.x, 2) + Math.pow(targetPixelPos.y - enemy.y, 2));
-        const moveDistance = enemy.speed * deltaTime; // Already incorporates gameSpeed in deltaTime
+        const moveDistance = enemy.speed * deltaTime;
 
         let newX = enemy.x;
         let newY = enemy.y;
@@ -298,14 +301,13 @@ export function useGameLogic() {
     });
 
     setTowers(prevTowers => prevTowers.map(tower => {
-      if (currentTime < tower.lastShotTime + (1000 / tower.stats.fireRate / gameState.gameSpeed)) { // Adjusted for gameSpeed
+      if (currentTime < tower.lastShotTime + (1000 / tower.stats.fireRate / gameState.gameSpeed)) {
         return tower; 
       }
 
       let target: Enemy | null = null;
       let minDistance = tower.stats.range + 1;
 
-      // Use a stable reference to enemies for targeting within this iteration
       const currentEnemiesForTargeting = enemiesRef.current;
       currentEnemiesForTargeting.forEach(enemy => { 
         const distance = Math.sqrt(Math.pow(enemy.x - tower.x, 2) + Math.pow(enemy.y - tower.y, 2));
@@ -337,7 +339,6 @@ export function useGameLogic() {
     setProjectiles(prevProjectiles => {
       const damageToApply: Record<string, { totalDamage: number; value: number }> = {};
       const projectilesThatHitOrExpired = new Set<string>();
-      // Use stable enemiesRef for projectile target finding
       const currentEnemiesForProjectileLogic = enemiesRef.current;
 
 
@@ -348,7 +349,7 @@ export function useGameLogic() {
         const targetPos = currentTarget ? { x: currentTarget.x, y: currentTarget.y } : p.targetPosition;
 
         const angle = Math.atan2(targetPos.y - p.y, targetPos.x - p.x);
-        const moveDistance = p.speed * deltaTime; // Already incorporates gameSpeed
+        const moveDistance = p.speed * deltaTime;
         const distanceToTarget = Math.sqrt(Math.pow(targetPos.x - p.x, 2) + Math.pow(targetPos.y - p.y, 2));
 
         let newX = p.x + Math.cos(angle) * moveDistance;
@@ -364,7 +365,7 @@ export function useGameLogic() {
           }
           return { ...p, x: newX, y: newY }; 
         } else if (!currentTarget && Math.abs(newX - targetPos.x) < 1 && Math.abs(newY - targetPos.y) < 1) {
-          projectilesThatHitOrExpired.add(p.id); // Projectile reached last known spot of a gone target
+          projectilesThatHitOrExpired.add(p.id);
           return { ...p, x: newX, y: newY }; 
         }
         
@@ -410,9 +411,8 @@ export function useGameLogic() {
 
     lastTickTimeRef.current = currentTime;
     gameLoopRef.current = requestAnimationFrame(gameLoop);
-  }, [gameState, gridToPixel]); 
+  }, [gameState, gridToPixel, enemies, projectiles]); 
 
-  // Refs for stable enemy list access within game loop
   const enemiesRef = useRef(enemies);
   useEffect(() => {
     enemiesRef.current = enemies;
@@ -426,7 +426,6 @@ export function useGameLogic() {
     } else if (gameState.gameStatus === 'waveInProgress') {
       shouldLoopRun = true;
     } else if (gameState.gameStatus === 'betweenWaves' || gameState.gameStatus === 'initial') {
-        // Keep loop running if there are active projectiles even between waves or at start (e.g. leftover from a reset while projectiles were flying)
       if (projectiles.length > 0 || enemies.length > 0) { 
         shouldLoopRun = true;
       }
@@ -435,7 +434,7 @@ export function useGameLogic() {
 
     if (shouldLoopRun) {
       if (!gameLoopRef.current) { 
-        lastTickTimeRef.current = performance.now(); // Ensure lastTickTime is current when loop (re)starts
+        lastTickTimeRef.current = performance.now(); 
         gameLoopRef.current = requestAnimationFrame(gameLoop);
       }
     } else { 
@@ -480,3 +479,4 @@ export function useGameLogic() {
     setGameState
   };
 }
+
