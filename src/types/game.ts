@@ -11,7 +11,7 @@ export interface PixelPosition {
   y: number;
 }
 
-export type TowerCategory = 'simple' | 'fire' | 'ice' | 'laser' | 'cannon'; // Added more tower types for future flexibility
+export type TowerCategory = 'simple' | 'fire' | 'ice' | 'laser' | 'cannon';
 
 export interface TowerLevelStats {
   level: 1 | 2 | 3;
@@ -47,7 +47,7 @@ export interface PlacedTower extends PixelPosition {
   rotation?: number; // degrees, for aiming
 }
 
-export type EnemyType = 'goblin' | 'orc' | 'troll' | 'boss'; // Added troll and boss
+export type EnemyType = 'goblin' | 'orc' | 'troll' | 'boss';
 
 export interface Enemy extends PixelPosition {
   id: string;
@@ -73,16 +73,16 @@ export interface Projectile extends PixelPosition {
 export interface SubWaveEnemyConfig {
   type: EnemyType;
   count: number;
-  healthMultiplierOverride?: number; // Optional: to override main wave's multiplier for this specific group in subwave
-  speedMultiplierOverride?: number;  // Optional
+  healthMultiplierOverride?: number;
+  speedMultiplierOverride?: number;
 }
 
 export interface SubWave {
-  id: string; // e.g., "main1-sub1"
-  subWaveInMainIndex: number; // 1-10
+  id: string;
+  subWaveInMainIndex: number; // 1-10 (for UI display and logic)
   enemies: SubWaveEnemyConfig[];
-  spawnIntervalMs: number; // Interval between spawning each enemy *group* within the sub-wave
-  postSubWaveDelayMs: number; // Delay *after* this sub-wave completes before the next one starts automatically
+  spawnIntervalMs: number;
+  postSubWaveDelayMs: number;
 }
 
 export interface MainWave {
@@ -92,40 +92,41 @@ export interface MainWave {
   subWaves: SubWave[];
 }
 
-
 export interface GameState {
   playerHealth: number;
   money: number;
-  currentOverallSubWave: number; // Overall progress, 1 to (totalMainWaves * subWavesPerMain)
-  currentMainWaveDisplay: number; // For UI: 1 to totalMainWaves
-  currentSubWaveInMainDisplay: number; // For UI: 1 to subWavesPerMain (or 0 if between main waves)
+  currentOverallSubWave: number;
+  currentMainWaveDisplay: number;
+  currentSubWaveInMainDisplay: number;
   score: number;
   isGameOver: boolean;
-  gameSpeed: number; // e.g., 1x, 2x
+  gameSpeed: number;
   selectedTowerType: TowerCategory | null;
   placementMode: boolean;
   gameStatus: 'initial' | 'subWaveInProgress' | 'waitingForNextSubWave' | 'betweenMainWaves' | 'gameOver' | 'gameWon';
-  waveStartTime: number | null; // Timestamp when the current sub-wave (or group of enemies) started spawning
+  waveStartTime: number | null;
+  // Sequence of all towers that *can* be unlocked in this game instance (max gameConfig.maxUnlockableTowers, 'simple' first, rest shuffled if applicable)
+  unlockableTowerProgression: TowerCategory[];
+  // Towers currently unlocked and available for purchase/placement by the player
   availableTowerTypes: TowerCategory[];
-  unlockableTowerProgression: TowerCategory[]; // The sequence of towers to be unlocked
 }
 
 export interface PlacementSpot extends GridPosition {
-  id: string; // e.g. "spot-row-col"
+  id: string;
   isOccupied: boolean;
 }
 
 export interface GameConfig {
   gridRows: number;
   gridCols: number;
-  cellSize: number; // in pixels
+  cellSize: number;
   enemyPath: GridPosition[];
   placementSpots: PlacementSpot[];
   towerTypes: Record<TowerCategory, TowerDefinition>;
-  initialGameState: Omit<GameState, 'selectedTowerType' | 'placementMode' | 'waveStartTime' | 'unlockableTowerProgression'>;
+  initialGameState: Omit<GameState, 'selectedTowerType' | 'placementMode' | 'waveStartTime' | 'unlockableTowerProgression' | 'availableTowerTypes'>;
   mainWaves: MainWave[];
   totalMainWaves: number;
   subWavesPerMain: number;
-  allTowerIds: TowerCategory[]; // All defined tower IDs for unlock progression
-  maxUnlockableTowers: number;
+  allTowerIds: TowerCategory[];
+  maxUnlockableTowers: number; // Max number of tower types a player can have active in a single game playthrough
 }

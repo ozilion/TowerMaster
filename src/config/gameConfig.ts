@@ -1,6 +1,6 @@
 
 import type { GameConfig, TowerCategory, EnemyType, MainWave, SubWave, SubWaveEnemyConfig, TowerDefinition } from '@/types/game';
-import { Shield, Flame, Snowflake, Zap, Target as CannonIcon } from 'lucide-react'; // Assuming Zap for Laser, CannonIcon for Cannon
+import { Shield, Flame, Snowflake, Zap, Target as CannonIcon } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 
 const GRID_ROWS = 12;
@@ -60,15 +60,15 @@ export const TOWER_TYPES: Record<TowerCategory, TowerDefinition> = {
   },
   laser: {
     id: 'laser', name: 'Lazer Kulesi', icon: Zap, baseCost: 120,
-    levels: { // Laser could be continuous damage, or very high fire rate single target
-      1: { damage: 5, range: CELL_SIZE * 3, fireRate: 5, projectileSpeed: 1000, color: 'rgba(255, 255, 0, 0.8)' }, // projectileSpeed for laser might mean beam speed
+    levels: {
+      1: { damage: 5, range: CELL_SIZE * 3, fireRate: 5, projectileSpeed: 1000, color: 'rgba(255, 255, 0, 0.8)' },
       2: { damage: 10, range: CELL_SIZE * 3.2, fireRate: 6, mergeCost: 150, projectileSpeed: 1000, color: 'rgba(230, 230, 0, 0.9)' },
       3: { damage: 18, range: CELL_SIZE * 3.5, fireRate: 7, mergeCost: 200, projectileSpeed: 1000, color: 'rgba(200, 200, 0, 1)' },
     }
   },
   cannon: {
     id: 'cannon', name: 'Top Kulesi', icon: CannonIcon, baseCost: 150,
-    levels: { // Cannon implies AoE damage, slow fire rate
+    levels: {
       1: { damage: 30, range: CELL_SIZE * 2.5, fireRate: 0.5, projectileSpeed: 200, color: 'rgba(50, 50, 50, 0.8)', special: 'aoe' },
       2: { damage: 50, range: CELL_SIZE * 2.8, fireRate: 0.6, mergeCost: 180, projectileSpeed: 220, color: 'rgba(40, 40, 40, 0.9)', special: 'aoe' },
       3: { damage: 80, range: CELL_SIZE * 3.1, fireRate: 0.7, mergeCost: 250, projectileSpeed: 240, color: 'rgba(30, 30, 30, 1)', special: 'aoe' },
@@ -95,40 +95,60 @@ function generateWaves(): MainWave[] {
   for (let i = 1; i <= TOTAL_MAIN_WAVES; i++) {
     const mainWave: MainWave = {
       mainWaveNumber: i,
-      baseHealthMultiplier: 1 + (i - 1) * 0.15, // Gradually increase health
-      baseSpeedMultiplier: 1 + (i - 1) * 0.03, // Slightly increase speed
+      baseHealthMultiplier: 1 + (i - 1) * 0.12, // Slightly reduced health scaling per main wave
+      baseSpeedMultiplier: 1 + (i - 1) * 0.025, // Slightly reduced speed scaling
       subWaves: [],
     };
 
     for (let j = 1; j <= SUB_WAVES_PER_MAIN; j++) {
       const subWaveEnemies: SubWaveEnemyConfig[] = [];
-      const enemyTypeForSubWave = enemyTypesCycle[(i + j - 2) % enemyTypesCycle.length];
-      let enemyCount = Math.max(5, Math.floor(5 + i * 0.5 + j * 0.2)); // Base count increases with main and sub wave
+      // Determine primary enemy type for this sub-wave
+      let enemyTypeForSubWave = enemyTypesCycle[(i + j - 2 + Math.floor(i/5)) % enemyTypesCycle.length]; // Vary types more often
 
-      if (j === SUB_WAVES_PER_MAIN && i % 10 === 0) { // Boss wave
-        subWaveEnemies.push({ type: 'boss', count: 1 });
-        enemyCount = 1; // Boss waves usually have only the boss
+      // Base enemy count, increases with main and sub wave number
+      let enemyCount = Math.floor(3 + i * 0.3 + j * 0.15); // Adjusted base count and scaling
+
+      if (j === SUB_WAVES_PER_MAIN && i % 10 === 0) { // Boss wave every 10 main waves
+        subWaveEnemies.push({ type: 'boss', count: 1 + Math.floor((i-10)/20) }); // More bosses in later boss waves
+        if (i > 10) { // Add some escorts for later bosses
+            const escortType = enemyTypesCycle[i % enemyTypesCycle.length];
+            subWaveEnemies.push({ type: escortType, count: Math.floor(enemyCount / 2) });
+        }
       } else {
-         // Mix in some other types for variety in later waves
-        if (i > 5 && j % 3 === 0) {
-            const secondEnemyType = enemyTypesCycle[(i + j) % enemyTypesCycle.length];
-            if (secondEnemyType !== enemyTypeForSubWave) {
-                 subWaveEnemies.push({ type: secondEnemyType, count: Math.floor(enemyCount / 3) });
+        // Standard sub-wave
+        subWaveEnemies.push({ type: enemyTypeForSubWave, count: Math.max(1, enemyCount) });
+
+        // Mix in a secondary type in later waves or specific sub-waves for variety
+        if (i > 3 && (j % 4 === 0 || i > 15)) {
+          const secondaryEnemyType = enemyTypesCycle[(i + j) % enemyTypesCycle.length];
+          if (secondaryEnemyType !== enemyTypeForSubWave) {
+            subWaveEnemies.push({ type: secondaryEnemyType, count: Math.max(1, Math.floor(enemyCount / 3)) });
+          }
+        }
+         // Add a small chance for a third type in very late waves
+        if (i > 25 && j % 5 === 0) {
+            const tertiaryEnemyType = enemyTypesCycle[(i + j + 1) % enemyTypesCycle.length];
+            if (tertiaryEnemyType !== enemyTypeForSubWave && !subWaveEnemies.find(e => e.type === tertiaryEnemyType)) {
+                 subWaveEnemies.push({ type: tertiaryEnemyType, count: Math.max(1, Math.floor(enemyCount / 4)) });
             }
         }
-        subWaveEnemies.push({ type: enemyTypeForSubWave, count: Math.ceil(enemyCount * (subWaveEnemies.length > 0 ? 2/3 : 1)) });
       }
       
       const subWave: SubWave = {
         id: `main${i}-sub${j}`,
         subWaveInMainIndex: j,
-        enemies: subWaveEnemies,
-        spawnIntervalMs: Math.max(300, 1500 - i * 20), // Enemies spawn faster in later waves
-        postSubWaveDelayMs: (j === SUB_WAVES_PER_MAIN) ? 0 : 2500, // 2.5s delay, 0 if last sub-wave (player starts next main)
+        enemies: subWaveEnemies.filter(group => group.count > 0), // Ensure no zero-count groups
+        spawnIntervalMs: Math.max(250, 1200 - i * 15 - j * 5), // Enemies spawn faster
+        postSubWaveDelayMs: (j === SUB_WAVES_PER_MAIN) ? 0 : Math.max(1500, 3000 - i * 10), // 1.5-3s delay, 0 if last sub-wave
       };
-      mainWave.subWaves.push(subWave);
+      if (subWave.enemies.length > 0) { // Only add subwave if it has enemies
+        mainWave.subWaves.push(subWave);
+      }
     }
-    mainWaves.push(mainWave);
+    // Ensure main wave has subwaves before pushing
+    if (mainWave.subWaves.length > 0) {
+        mainWaves.push(mainWave);
+    }
   }
   return mainWaves;
 }
@@ -141,18 +161,16 @@ const gameConfig: GameConfig = {
   enemyPath,
   placementSpots,
   towerTypes: TOWER_TYPES,
-  initialGameState: {
+  initialGameState: { // unlockableTowerProgression and availableTowerTypes will be set client-side
     playerHealth: 20,
     money: 200,
-    currentOverallSubWave: 0, // 0 means game not started
+    currentOverallSubWave: 0,
     currentMainWaveDisplay: 1,
     currentSubWaveInMainDisplay: 0,
     score: 0,
     isGameOver: false,
     gameSpeed: 1,
     gameStatus: 'initial',
-    availableTowerTypes: [], // Initialize as empty for client-side setup
-    unlockableTowerProgression: [], // Initialize as empty for client-side setup
   },
   mainWaves: generateWaves(),
   totalMainWaves: TOTAL_MAIN_WAVES,
