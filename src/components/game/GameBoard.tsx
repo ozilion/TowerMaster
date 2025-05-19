@@ -3,8 +3,7 @@
 
 import type React from 'react';
 import type { PlacedTower, Enemy, Projectile, PlacementSpot, TowerCategory, GridPosition, PixelPosition } from '@/types/game';
-import gameConfig, { ENEMY_TYPES } from '@/config/gameConfig'; 
-// import { Target, Flame, Snowflake, Shield } from 'lucide-react'; // Icons will be handled differently if this resolves the issue
+import gameConfig from '@/config/gameConfig'; 
 
 interface GameBoardProps {
   towers: PlacedTower[];
@@ -22,7 +21,7 @@ interface GameBoardProps {
 
 const TowerIcon: React.FC<{ type: TowerCategory, sizeClass?: string }> = ({ type, sizeClass="w-5 h-5" }) => {
   const IconComponent = gameConfig.towerTypes[type]?.icon;
-  if (!IconComponent) { // If no icon is defined, render a placeholder or nothing
+  if (!IconComponent) { 
     return <div className={`${sizeClass} bg-primary/50 rounded-sm flex items-center justify-center text-xs text-primary-foreground`}>T</div>;
   }
   return <IconComponent className={`${sizeClass} text-primary-foreground`} />;
@@ -90,13 +89,13 @@ const GameBoard: React.FC<GameBoardProps> = ({
 
         if (spot.isOccupied) {
           spotColor = 'bg-gray-500/50';
-          cursorStyle = 'cursor-pointer'; // To click existing towers
+          cursorStyle = 'cursor-pointer'; 
         } else if (selectedTowerForMovingId) {
-          spotColor = 'bg-green-300/50'; // Highlight for potential move
+          spotColor = 'bg-green-300/50'; 
           hoverEffect = 'hover:bg-green-400/70';
           cursorStyle = 'cursor-pointer';
         } else if (selectedTowerType) {
-          spotColor = 'bg-blue-300/50'; // Highlight for new placement
+          spotColor = 'bg-blue-300/50'; 
           hoverEffect = 'hover:bg-blue-400/70';
           cursorStyle = 'cursor-pointer';
         }
@@ -177,8 +176,9 @@ const GameBoard: React.FC<GameBoardProps> = ({
             top: enemy.y - enemy.size / 2,
             width: enemy.size,
             height: enemy.size,
-            backgroundColor: ENEMY_TYPES[enemy.type as keyof typeof ENEMY_TYPES]?.color || 'purple',
+            backgroundColor: gameConfig.enemyTypes[enemy.type as keyof typeof gameConfig.enemyTypes]?.color || 'purple',
             zIndex: 20,
+            // Removed CSS transition for smoother JS-driven animation
           }}
           aria-label={`Enemy ${enemy.type}`}
         >
@@ -188,7 +188,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
               style={{ width: `${(enemy.health / enemy.maxHealth) * 100}%` }}
             />
           </div>
-          <span className="text-white text-xs font-bold">E</span>
+          <span className="text-white text-xs font-bold">E</span> {/* Placeholder, can be icon later */}
         </div>
       ))}
 
@@ -204,6 +204,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
             height: 6,
             backgroundColor: p.color,
             zIndex: 15,
+            // Removed CSS transition
           }}
           aria-hidden="true"
         />

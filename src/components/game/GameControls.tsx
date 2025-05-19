@@ -6,8 +6,8 @@ import type { GameState, TowerCategory, PlacedTower } from '@/types/game';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import gameConfig, { TOWER_TYPES } from '@/config/gameConfig';
-import { Coins, Heart, Layers, ShieldAlert, HelpCircle } from 'lucide-react';
+import gameConfig from '@/config/gameConfig';
+import { Coins, Heart, Layers, ShieldAlert, HelpCircle } from 'lucide-react'; // Assuming these are for general UI
 
 interface GameControlsProps {
   gameState: GameState;
@@ -57,7 +57,7 @@ const GameControls: React.FC<GameControlsProps> = ({
             <span>Dalga: {currentMainWaveDisplay}-{currentSubWaveInMainDisplay}</span>
           </div>
           <div className="flex items-center gap-1 p-2 bg-secondary/50 rounded">
-            <ShieldAlert className="w-4 h-4 text-green-500" />
+            <ShieldAlert className="w-4 h-4 text-green-500" /> {/* Assuming this is for score */}
             <span>Skor: {score}</span>
           </div>
         </div>
@@ -68,9 +68,9 @@ const GameControls: React.FC<GameControlsProps> = ({
           <h3 className="text-md font-semibold mb-2 text-center">Kuleler</h3>
           <div className="grid grid-cols-1 gap-2">
             {availableTowerTypes.map((towerId) => {
-              const towerDef = TOWER_TYPES[towerId];
+              const towerDef = gameConfig.towerTypes[towerId];
               if (!towerDef) return null;
-              const IconComponent = towerDef.icon;
+              const IconComponent = towerDef.icon; // This should be the LucideIcon component itself
               const canAfford = money >= towerDef.baseCost;
               const isSelectedForPlacement = selectedTowerType === towerDef.id;
               return (
@@ -113,14 +113,14 @@ const GameControls: React.FC<GameControlsProps> = ({
             <div>
               <h3 className="text-md font-semibold mb-1 text-center">Seçili Kule Bilgileri</h3>
               <Card className="bg-secondary/30 p-2 text-xs">
-                <p><strong>Tip:</strong> {TOWER_TYPES[selectedPlacedTower.type]?.name || selectedPlacedTower.type}</p>
+                <p><strong>Tip:</strong> {gameConfig.towerTypes[selectedPlacedTower.type]?.name || selectedPlacedTower.type}</p>
                 <p><strong>Seviye:</strong> {selectedPlacedTower.level}</p>
                 <p><strong>Hasar:</strong> {selectedPlacedTower.stats.damage}</p>
                 <p><strong>Menzil:</strong> {selectedPlacedTower.stats.range.toFixed(0)}</p>
                 <p><strong>Atış Hızı:</strong> {selectedPlacedTower.stats.fireRate.toFixed(1)}/s</p>
                 {selectedPlacedTower.stats.special && <p><strong>Özel:</strong> {selectedPlacedTower.stats.special}</p>}
-                {selectedPlacedTower.level < 3 && TOWER_TYPES[selectedPlacedTower.type]?.levels[(selectedPlacedTower.level + 1) as 2 | 3]?.mergeCost !== undefined && (
-                  <p><strong>Birleştirme Bedeli:</strong> {TOWER_TYPES[selectedPlacedTower.type].levels[(selectedPlacedTower.level + 1) as 2 | 3].mergeCost}</p>
+                {selectedPlacedTower.level < 3 && gameConfig.towerTypes[selectedPlacedTower.type]?.levels[(selectedPlacedTower.level + 1) as 2 | 3]?.mergeCost !== undefined && (
+                  <p><strong>Birleştirme Bedeli:</strong> {gameConfig.towerTypes[selectedPlacedTower.type].levels[(selectedPlacedTower.level + 1) as 2 | 3].mergeCost}</p>
                 )}
               </Card>
               <p className="text-xs text-center text-muted-foreground mt-1 px-1">

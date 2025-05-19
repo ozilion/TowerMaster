@@ -11,7 +11,7 @@ export interface PixelPosition {
   y: number;
 }
 
-export type TowerCategory = 'simple' | 'fire' | 'ice' | 'laser' | 'cannon';
+export type TowerCategory = 'simple' | 'fire' | 'ice' | 'laser' | 'cannon' | 'boss'; // Added boss as a potential tower type for flexibility, though not used as such yet.
 
 export interface TowerLevelStats {
   level: 1 | 2 | 3;
@@ -28,23 +28,13 @@ export interface TowerLevelStats {
 export interface TowerDefinition {
   id: TowerCategory;
   name: string;
-  icon?: LucideIcon; // Made icon optional
+  icon: LucideIcon; // Icon is now mandatory
   baseCost: number;
   levels: {
     1: Omit<TowerLevelStats, 'level' | 'mergeCost'>;
     2: Omit<TowerLevelStats, 'level' | 'cost'>;
     3: Omit<TowerLevelStats, 'level' | 'cost'>;
   };
-}
-
-export interface PlacedTower extends PixelPosition {
-  id: string; // Unique instance ID
-  type: TowerCategory;
-  level: 1 | 2 | 3;
-  stats: TowerLevelStats; // current effective stats
-  targetId?: string; // ID of the current enemy target
-  lastShotTime: number; // timestamp of the last shot
-  rotation?: number; // degrees, for aiming
 }
 
 export type EnemyType = 'goblin' | 'orc' | 'troll' | 'boss';
@@ -79,46 +69,40 @@ export interface SubWaveEnemyConfig {
 
 export interface SubWave {
   id: string;
-  subWaveInMainIndex: number;
+  subWaveInMainIndex: number; // 1-indexed for display
   enemies: SubWaveEnemyConfig[];
-  spawnIntervalMs: number;
-  postSubWaveDelayMs: number;
+  spawnIntervalMs: number; // Time between individual enemy spawns in this sub-wave
+  postSubWaveDelayMs: number; // Delay AFTER this sub-wave completes, before next auto starts
 }
 
 export interface MainWave {
-  mainWaveNumber: number;
+  mainWaveNumber: number; // 1-indexed
   baseHealthMultiplier: number;
   baseSpeedMultiplier: number;
-  subWaves: SubWave[];
+  subWaves: SubWave[]; // Array of sub-waves
 }
-
 export interface GameState {
   playerHealth: number;
   money: number;
-  currentOverallSubWave: number;
-  currentMainWaveDisplay: number;
-  currentSubWaveInMainDisplay: number;
+  currentOverallSubWave: number; // Overall sub-wave counter (1 to TOTAL_SUB_WAVES)
+  currentMainWaveDisplay: number; // Current main wave number for display (1-indexed)
+  currentSubWaveInMainDisplay: number; // Current sub-wave within the main wave for display (1-indexed)
   score: number;
   isGameOver: boolean;
   gameSpeed: number;
   selectedTowerType: TowerCategory | null;
-  placementMode: boolean;
+  placementMode: boolean; // To indicate if player is in tower placement mode
   gameStatus: 'initial' | 'subWaveInProgress' | 'waitingForNextSubWave' | 'betweenMainWaves' | 'gameOver' | 'gameWon';
-  unlockableTowerProgression: TowerCategory[];
-  availableTowerTypes: TowerCategory[];
+  unlockableTowerProgression: TowerCategory[]; // The sequence of towers that can be unlocked
+  availableTowerTypes: TowerCategory[]; // Towers currently available to the player
+  waveStartTime: number; // Timestamp when the current sub-wave's enemy spawning started
 }
 
-// This type is for the initialGameState object within GameConfig
 export interface InitialGameStateConfig {
   playerHealth: number;
   money: number;
-  currentOverallSubWave: number;
-  currentMainWaveDisplay: number;
-  currentSubWaveInMainDisplay: number;
   score: number;
-  isGameOver: boolean;
   gameSpeed: number;
-  gameStatus: 'initial'; // Can be more specific if it's always 'initial' here
 }
 
 export interface PlacementSpot extends GridPosition {
@@ -133,10 +117,11 @@ export interface GameConfig {
   enemyPath: GridPosition[];
   placementSpots: PlacementSpot[];
   towerTypes: Record<TowerCategory, TowerDefinition>;
-  initialGameState: InitialGameStateConfig; // Use the new type
+  enemyTypes: Record<EnemyType, { baseHealth: number; baseSpeed: number; baseValue: number; color: string; size: number; }>;
+  initialGameState: InitialGameStateConfig;
   mainWaves: MainWave[];
   totalMainWaves: number;
   subWavesPerMain: number;
   allTowerIds: TowerCategory[];
-  maxUnlockableTowers: number;
+  maxUnlockableTowers: number; // Max number of tower types a player can unlock in a game
 }
