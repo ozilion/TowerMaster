@@ -95,37 +95,30 @@ function generateWaves(): MainWave[] {
   for (let i = 1; i <= TOTAL_MAIN_WAVES; i++) {
     const mainWave: MainWave = {
       mainWaveNumber: i,
-      baseHealthMultiplier: 1 + (i - 1) * 0.12, // Slightly reduced health scaling per main wave
-      baseSpeedMultiplier: 1 + (i - 1) * 0.025, // Slightly reduced speed scaling
+      baseHealthMultiplier: 1 + (i - 1) * 0.12, 
+      baseSpeedMultiplier: 1 + (i - 1) * 0.025, 
       subWaves: [],
     };
 
     for (let j = 1; j <= SUB_WAVES_PER_MAIN; j++) {
       const subWaveEnemies: SubWaveEnemyConfig[] = [];
-      // Determine primary enemy type for this sub-wave
-      let enemyTypeForSubWave = enemyTypesCycle[(i + j - 2 + Math.floor(i/5)) % enemyTypesCycle.length]; // Vary types more often
+      let enemyTypeForSubWave = enemyTypesCycle[(i + j - 2 + Math.floor(i/5)) % enemyTypesCycle.length]; 
+      let enemyCount = Math.floor(3 + i * 0.3 + j * 0.15); 
 
-      // Base enemy count, increases with main and sub wave number
-      let enemyCount = Math.floor(3 + i * 0.3 + j * 0.15); // Adjusted base count and scaling
-
-      if (j === SUB_WAVES_PER_MAIN && i % 10 === 0) { // Boss wave every 10 main waves
-        subWaveEnemies.push({ type: 'boss', count: 1 + Math.floor((i-10)/20) }); // More bosses in later boss waves
-        if (i > 10) { // Add some escorts for later bosses
+      if (j === SUB_WAVES_PER_MAIN && i % 10 === 0) { 
+        subWaveEnemies.push({ type: 'boss', count: 1 + Math.floor((i-10)/20) });
+        if (i > 10) { 
             const escortType = enemyTypesCycle[i % enemyTypesCycle.length];
             subWaveEnemies.push({ type: escortType, count: Math.floor(enemyCount / 2) });
         }
       } else {
-        // Standard sub-wave
         subWaveEnemies.push({ type: enemyTypeForSubWave, count: Math.max(1, enemyCount) });
-
-        // Mix in a secondary type in later waves or specific sub-waves for variety
         if (i > 3 && (j % 4 === 0 || i > 15)) {
           const secondaryEnemyType = enemyTypesCycle[(i + j) % enemyTypesCycle.length];
           if (secondaryEnemyType !== enemyTypeForSubWave) {
             subWaveEnemies.push({ type: secondaryEnemyType, count: Math.max(1, Math.floor(enemyCount / 3)) });
           }
         }
-         // Add a small chance for a third type in very late waves
         if (i > 25 && j % 5 === 0) {
             const tertiaryEnemyType = enemyTypesCycle[(i + j + 1) % enemyTypesCycle.length];
             if (tertiaryEnemyType !== enemyTypeForSubWave && !subWaveEnemies.find(e => e.type === tertiaryEnemyType)) {
@@ -137,15 +130,14 @@ function generateWaves(): MainWave[] {
       const subWave: SubWave = {
         id: `main${i}-sub${j}`,
         subWaveInMainIndex: j,
-        enemies: subWaveEnemies.filter(group => group.count > 0), // Ensure no zero-count groups
-        spawnIntervalMs: Math.max(250, 1200 - i * 15 - j * 5), // Enemies spawn faster
-        postSubWaveDelayMs: (j === SUB_WAVES_PER_MAIN) ? 0 : Math.max(1500, 3000 - i * 10), // 1.5-3s delay, 0 if last sub-wave
+        enemies: subWaveEnemies.filter(group => group.count > 0),
+        spawnIntervalMs: Math.max(250, 1200 - i * 15 - j * 5),
+        postSubWaveDelayMs: (j === SUB_WAVES_PER_MAIN) ? 0 : Math.max(1500, 3000 - i * 20), // Increased postSubWaveDelayMs slightly for very late waves
       };
-      if (subWave.enemies.length > 0) { // Only add subwave if it has enemies
+      if (subWave.enemies.length > 0) {
         mainWave.subWaves.push(subWave);
       }
     }
-    // Ensure main wave has subwaves before pushing
     if (mainWave.subWaves.length > 0) {
         mainWaves.push(mainWave);
     }
@@ -161,7 +153,7 @@ const gameConfig: GameConfig = {
   enemyPath,
   placementSpots,
   towerTypes: TOWER_TYPES,
-  initialGameState: { // unlockableTowerProgression and availableTowerTypes will be set client-side
+  initialGameState: {
     playerHealth: 20,
     money: 200,
     currentOverallSubWave: 0,
@@ -171,6 +163,9 @@ const gameConfig: GameConfig = {
     isGameOver: false,
     gameSpeed: 1,
     gameStatus: 'initial',
+    waveStartTime: null,
+    unlockableTowerProgression: [], // Set by client-side useEffect in useGameLogic
+    availableTowerTypes: ['simple'], // Start with 'simple' tower available for immediate render
   },
   mainWaves: generateWaves(),
   totalMainWaves: TOTAL_MAIN_WAVES,
