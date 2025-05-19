@@ -3,7 +3,7 @@
 
 import type React from 'react';
 import type { PlacedTower, Enemy, Projectile, PlacementSpot, TowerCategory, GridPosition, PixelPosition } from '@/types/game';
-import gameConfig, { ENEMY_TYPES } from '@/config/gameConfig';
+import gameConfig, { ENEMY_TYPES } from '@/config/gameConfig'; // ENEMY_TYPES import edildi
 import { Target, Flame, Snowflake, Shield } from 'lucide-react'; 
 
 interface GameBoardProps {
@@ -124,7 +124,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
         return (
           <div
             key={tower.id}
-            className={`absolute rounded-full flex items-center justify-center transition-all duration-150 ease-in-out
+            className={`absolute rounded-full flex items-center justify-center
                         ${isSelectedForMoving ? 'ring-4 ring-accent ring-offset-2 ring-offset-background' : ''}`}
             style={{
               left: tower.x - gameConfig.cellSize / 2,
@@ -176,7 +176,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
             height: enemy.size,
             backgroundColor: ENEMY_TYPES[enemy.type as keyof typeof ENEMY_TYPES]?.color || 'purple',
             zIndex: 20,
-            transition: 'left 0.1s linear, top 0.1s linear',
+            // transition: 'left 0.1s linear, top 0.1s linear', // Removed for smoother JS-driven animation
           }}
           aria-label={`Enemy ${enemy.type}`}
         >
@@ -202,7 +202,7 @@ const GameBoard: React.FC<GameBoardProps> = ({
             height: 6,
             backgroundColor: p.color,
             zIndex: 15,
-            transition: 'left 0.05s linear, top 0.05s linear',
+            // transition: 'left 0.05s linear, top 0.05s linear', // Removed for smoother JS-driven animation
           }}
           aria-hidden="true"
         />
@@ -238,3 +238,4 @@ const GameBoard: React.FC<GameBoardProps> = ({
 };
 
 export default GameBoard;
+

@@ -9,6 +9,7 @@ import { v4 as uuidv4 } from 'uuid';
 const getStatsForLevel = (towerType: TowerCategory, level: 1 | 2 | 3): TowerLevelStats => {
   const definition = TOWER_TYPES[towerType];
   if (!definition) {
+    // Fallback default stats, though this case should ideally not be hit with proper config
     return { level, damage: 1, range: 1, fireRate: 1, projectileSpeed: 100, color: 'grey' };
   }
   const levelStats = definition.levels[level];
@@ -43,10 +44,9 @@ export function useGameLogic() {
   );
   
   const [gameState, setGameState] = useState<GameState>({
-    ...gameConfig.initialGameState, // availableTowerTypes ['simple'] ile başlar
+    ...gameConfig.initialGameState, 
     selectedTowerType: null,
-    placementMode: false,
-    unlockableTowerProgression: [], // useEffect'de client tarafında belirlenecek
+    placementMode: false, 
   });
 
   const gameLoopRef = useRef<number>();
@@ -64,7 +64,7 @@ export function useGameLogic() {
   const projectilesRef = useRef(projectiles);
   useEffect(() => { projectilesRef.current = projectiles; }, [projectiles]);
 
-  const enemiesRef = useRef(enemies);
+  const enemiesRef = useRef(enemies); // Ensure this ref is correctly defined and updated
   useEffect(() => { enemiesRef.current = enemies; }, [enemies]);
 
   const placementSpotsRef = useRef(currentPlacementSpots);
@@ -72,45 +72,49 @@ export function useGameLogic() {
 
   const initializeTowerStateForGame = useCallback(() => {
     const allIds = [...gameConfig.allTowerIds];
-    const simpleTowerId: TowerCategory = 'simple';
+    const simpleTowerId: TowerCategory = 'simple'; // Ensure this matches your base tower ID
     let progression: TowerCategory[] = [];
 
+    // Ensure 'simple' tower is first
     const simpleIndex = allIds.indexOf(simpleTowerId);
     if (simpleIndex !== -1) {
       progression.push(allIds.splice(simpleIndex, 1)[0]);
-    } else if (allIds.length > 0) { // Fallback to first if 'simple' isn't in allTowerIds for some reason
+    } else if (allIds.length > 0) { // Fallback if 'simple' isn't defined, take the first available
         progression.push(allIds.splice(0, 1)[0]);
     }
     
-    const shuffledRemaining = shuffleArray(allIds); // Shuffle remaining (which no longer contains the first pushed one)
+    const shuffledRemaining = shuffleArray(allIds);
     progression.push(...shuffledRemaining);
     
+    // Limit to maxUnlockableTowers, ensuring 'simple' (or the first one) is always included
     if (progression.length > gameConfig.maxUnlockableTowers) {
       progression = progression.slice(0, gameConfig.maxUnlockableTowers);
     }
-    
-    // Ensure 'simple' is indeed first if it was defined in allTowerIds
-    // and wasn't the one picked as fallback (if it was missing)
-    if (gameConfig.allTowerIds.includes(simpleTowerId)) {
-        const currentSimpleIndex = progression.indexOf(simpleTowerId);
-        if (currentSimpleIndex > 0) { // if simple is present but not at the start
-            progression.splice(currentSimpleIndex, 1);
-            progression.unshift(simpleTowerId);
-        } else if (currentSimpleIndex === -1) { // if simple was somehow removed (e.g. by slice)
-            progression.pop(); // make space if full
-            progression.unshift(simpleTowerId);
+     // Double-check 'simple' is present if it was supposed to be and got sliced, re-add if necessary
+    if (gameConfig.allTowerIds.includes(simpleTowerId) && !progression.includes(simpleTowerId) && progression.length < gameConfig.maxUnlockableTowers ) {
+        progression.pop(); // make space if full
+        progression.unshift(simpleTowerId);
+    } else if (gameConfig.allTowerIds.includes(simpleTowerId) && !progression.includes(simpleTowerId) && progression.length === gameConfig.maxUnlockableTowers) {
+        // if simple is missing and list is full, replace last with simple
+        progression[progression.length -1] = simpleTowerId; 
+        const simpleIdxInProg = progression.indexOf(simpleTowerId);
+        if (simpleIdxInProg !== 0) { // if simple is now in list but not at start
+           const temp = progression[0];
+           progression[0] = simpleTowerId;
+           progression[simpleIdxInProg] = temp;
         }
     }
     
     setGameState(prev => ({
       ...prev,
       unlockableTowerProgression: progression,
-      // availableTowerTypes is already set to ['simple'] by initialGameState from gameConfig
+      availableTowerTypes: [progression[0]] // Start with only the first tower from the progression (e.g., 'simple')
     }));
   }, []);
 
 
   useEffect(() => {
+    // This useEffect runs once on the client after initial hydration.
     initializeTowerStateForGame();
   }, [initializeTowerStateForGame]);
 
@@ -126,13 +130,12 @@ export function useGameLogic() {
     if (nextSubWaveTimerRef.current) clearTimeout(nextSubWaveTimerRef.current);
     nextSubWaveTimerRef.current = null;
     
-    setGameState({
-      ...gameConfig.initialGameState, // availableTowerTypes ['simple'] ile başlar
+    setGameState({ // Reset to initial config, then let useEffect re-initialize progression
+      ...gameConfig.initialGameState,
       selectedTowerType: null,
       placementMode: false,
-      unlockableTowerProgression: [], // initializeTowerStateForGame tekrar ayarlayacak
     });
-    initializeTowerStateForGame(); // Kuleleri yeniden ayarla
+    // initializeTowerStateForGame will be called by its own useEffect
     
     setTowers([]);
     setEnemies([]);
@@ -145,6 +148,8 @@ export function useGameLogic() {
       cancelAnimationFrame(gameLoopRef.current);
       gameLoopRef.current = undefined;
     }
+    // Re-initialize tower progression for the new game
+    initializeTowerStateForGame();
   }, [initializeTowerStateForGame]); 
 
   const placeTower = useCallback((spot: PlacementSpot, towerType: TowerCategory) => {
@@ -232,7 +237,9 @@ export function useGameLogic() {
     }
 
     let nextOverallSubWaveToProcess = currentGS.currentOverallSubWave + 1;
-    if (currentGS.gameStatus === 'initial') nextOverallSubWaveToProcess = 1;
+    if (currentGS.gameStatus === 'initial') {
+      nextOverallSubWaveToProcess = 1;
+    }
 
     const totalPossibleSubWaves = gameConfig.totalMainWaves * gameConfig.subWavesPerMain;
     if (nextOverallSubWaveToProcess > totalPossibleSubWaves && currentGS.currentOverallSubWave >= totalPossibleSubWaves) {
@@ -272,43 +279,45 @@ export function useGameLogic() {
     const progression = currentGS.unlockableTowerProgression;
     const currentMainWaveNumberForUnlock = mainWaveIndex + 1; 
 
-    if (subWaveInMainIndexActual === 0 && progression.length > 0) { 
-        let currentUnlockCount = updatedAvailableTowers.length;
-        let targetUnlockCountBasedOnWave = 0;
-
-        if (currentMainWaveNumberForUnlock === 1) { // Start of game, simple tower already available
-            targetUnlockCountBasedOnWave = 1;
-        } else if (currentMainWaveNumberForUnlock === 2) { // After first main wave (start of main wave 2)
-            targetUnlockCountBasedOnWave = Math.min(3, progression.length);
-        } else if (currentMainWaveNumberForUnlock > 2) { // Subsequent main waves
-            // Unlock one new tower per main wave, up to maxUnlockableTowers or progression length
-            targetUnlockCountBasedOnWave = Math.min(updatedAvailableTowers.length + 1, progression.length, gameConfig.maxUnlockableTowers);
-        }
-        
-        if (targetUnlockCountBasedOnWave > currentUnlockCount) {
-            updatedAvailableTowers = progression.slice(0, targetUnlockCountBasedOnWave);
+    if (subWaveInMainIndexActual === 0 && progression.length > 0) { // New main wave starts
+        if (currentMainWaveNumberForUnlock === 1 && progression.length > 0) { // Start of game
+            updatedAvailableTowers = [progression[0]]; // Only 'simple' or first in progression
+        } else if (currentMainWaveNumberForUnlock === 2 && progression.length > 0) { // Start of main wave 2
+             updatedAvailableTowers = progression.slice(0, Math.min(3, progression.length));
+        } else if (currentMainWaveNumberForUnlock > 2 && updatedAvailableTowers.length < progression.length && updatedAvailableTowers.length < gameConfig.maxUnlockableTowers) {
+            // For subsequent main waves, add one new tower if not at max
+            const nextTowerIndex = updatedAvailableTowers.length;
+            if (progression[nextTowerIndex]) {
+                updatedAvailableTowers.push(progression[nextTowerIndex]);
+            }
         }
     }
-
+    
     setGameState(prev => ({
       ...prev,
       currentOverallSubWave: nextOverallSubWaveToProcess,
       currentMainWaveDisplay: currentMainWaveConfig.mainWaveNumber,
-      currentSubWaveInMainDisplay: currentSubWaveConfig.subWaveInMainIndex, 
+      currentSubWaveInMainDisplay: currentSubWaveConfig.subWaveInMainIndex + 1, // For 1-based display
       gameStatus: 'subWaveInProgress',
       availableTowerTypes: updatedAvailableTowers,
       waveStartTime: performance.now(),
     }));
-  }, [gridToPixel]); 
+  }, [gridToPixel, initializeTowerStateForGame]); 
 
 
   const gameLoop = useCallback((currentTime: number) => {
-    if (!gameLoopRef.current) return; 
+    // gameLoopRef.current is checked by the useEffect that calls this.
+    // If it's not set, this function shouldn't be running.
+    // However, as a safeguard if called directly or by a stale timeout:
+    if (!gameLoopRef.current) return;
+
 
     const currentGameState = gameStateRef.current; 
     if (!currentGameState.waveStartTime && currentGameState.gameStatus === 'subWaveInProgress') {
+        // Wave hasn't "officially" started processing yet, wait for next tick.
+        // This might happen if waveStartTime gets reset or isn't set before first loop.
         lastTickTimeRef.current = currentTime;
-        requestAnimationFrame(gameLoop);
+        requestAnimationFrame(gameLoop); // Re-queue the loop
         return;
     }
     
@@ -356,7 +365,7 @@ export function useGameLogic() {
         }
         return enemy.health > 0; 
       });
-      if (healthChanged && newPlayerHealth !== gameStateRef.current.playerHealth) { // Check if health actually changed before setting state
+      if (healthChanged && newPlayerHealth !== gameStateRef.current.playerHealth) {
          setGameState(prev => ({ ...prev, playerHealth: newPlayerHealth, isGameOver: newPlayerHealth <= 0, gameStatus: newPlayerHealth <=0 ? 'gameOver' : prev.gameStatus }));
       }
       return updatedEnemies;
@@ -471,37 +480,40 @@ export function useGameLogic() {
     }
     
     lastTickTimeRef.current = currentTime; 
-    if (gameLoopRef.current) { 
+    if (gameLoopRef.current) { // Check if loop should still be running based on original request
       requestAnimationFrame(gameLoop);
     }
-  }, [gridToPixel]); 
+  }, [gridToPixel, startNextWave]); // Added startNextWave as it's used in timeouts
 
   useEffect(() => {
-    // Use gameState directly from the hook's closure for this effect's logic
-    let loopShouldBeActive = false;
+    let loopShouldBeRunning = false;
+    // Directly use gameState from the hook's closure for this effect's logic
     if (gameState.gameStatus === 'subWaveInProgress') {
-      loopShouldBeActive = true;
-    } else if (projectilesRef.current.length > 0 && !gameState.isGameOver && gameState.gameStatus !== 'gameWon') {
-      // Keep loop running if there are active projectiles and game is not ended
-      loopShouldBeActive = true;
+      loopShouldBeRunning = true;
+    } else if (
+      (gameState.gameStatus === 'waitingForNextSubWave' || gameState.gameStatus === 'betweenMainWaves') &&
+      projectiles.length > 0 && // Use direct state 'projectiles.length'
+      !gameState.isGameOver && gameState.gameStatus !== 'gameWon'
+    ) {
+      loopShouldBeRunning = true;
     }
-
-    if (gameState.isGameOver || gameState.gameStatus === 'gameWon') { // Explicitly stop if game ended
-      loopShouldBeActive = false;
+  
+    if (gameState.isGameOver || gameState.gameStatus === 'gameWon') {
+      loopShouldBeRunning = false;
     }
-
-    if (loopShouldBeActive) {
-      if (!gameLoopRef.current) { // If loop is not already running, start it
-        lastTickTimeRef.current = performance.now(); // Set time for the first tick
+  
+    if (loopShouldBeRunning) {
+      if (!gameLoopRef.current) {
+        lastTickTimeRef.current = performance.now();
         gameLoopRef.current = requestAnimationFrame(gameLoop);
       }
-    } else { // If loop should not be active
-      if (gameLoopRef.current) { // If loop is running, stop it
+    } else {
+      if (gameLoopRef.current) {
         cancelAnimationFrame(gameLoopRef.current);
         gameLoopRef.current = undefined;
       }
     }
-
+  
     return () => {
       if (gameLoopRef.current) {
         cancelAnimationFrame(gameLoopRef.current);
@@ -512,8 +524,7 @@ export function useGameLogic() {
         nextSubWaveTimerRef.current = null;
       }
     };
-  // Critical dependencies: gameStatus drives the main logic. gameSpeed affects loop timing. gameLoop definition. isGameOver/gameWon stops it.
-  }, [gameState.gameStatus, gameState.isGameOver, gameState.gameWon, gameState.gameSpeed, gameLoop]);
+  }, [gameState.gameStatus, gameState.isGameOver, gameState.gameWon, projectiles.length, gameLoop]);
 
 
   useEffect(() => {
@@ -542,5 +553,3 @@ export function useGameLogic() {
     setGameState 
   };
 }
-
-    
