@@ -2,15 +2,12 @@
 "use client";
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { Button } from '@/components/ui/button'; 
+import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useGameLogic } from '@/hooks/useGameLogic';
 import gameConfig from '@/config/gameConfig';
-// import { Heart, Coins, Layers, Award } from 'lucide-react'; // Icons are now in ImprovedGameBoard
 import type { PlacedTower, TowerCategory, PlacementSpot, GameState as GameStateType, GameEndScreenProps, InstructionsModalProps } from '@/types/game';
-
-// İyileştirilmiş oyun arayüzünü içe aktarıyoruz
-import ImprovedGameBoard from '@/components/game/ImprovedGameBoard'; // Corrected path
+import ImprovedGameBoard from '@/components/game/ImprovedGameBoard';
 
 // GameWon ekranı
 const GameWonScreen: React.FC<GameEndScreenProps> = ({ isOpen, score, onRestart }) => {
@@ -98,109 +95,106 @@ export default function KuleSavunmaPage() {
   const [selectedTowerForMovingId, setSelectedTowerForMovingId] = useState<string | null>(null);
   const [showRangeIndicatorForTower, setShowRangeIndicatorForTower] = useState<PlacedTower | null>(null);
 
-  // Kule seçim işlemleri (ImprovedGameBoard içindeki UI için)
-  const handleTowerSelectionForPlacement = (type: TowerCategory | null) => {
-    setSelectedTowerType(type);
+  const resetGameAndSelections = useCallback(() => {
+    resetGame();
     setFirstSelectedTowerForMerge(null);
-    setSelectedTowerForMovingId(null); 
+    setSelectedTowerForMovingId(null);
     setShowRangeIndicatorForTower(null);
-  };
+    setSelectedTowerType(null); 
+  }, [resetGame, setSelectedTowerType]);
 
-  // Oyun tahtasında kule tıklama işlemi (mevcut kuleyi seçmek/birleştirmek/taşımak için)
-  const handleTowerClickOnBoard = (towerId: string) => {
+  // Kule seçim işlemleri (ImprovedGameBoard içindeki UI için)
+  const handleTowerSelectionForPlacement = useCallback((type: TowerCategory | null) => {
+    setSelectedTowerType(type); 
+    setFirstSelectedTowerForMerge(null);
+    setSelectedTowerForMovingId(null);
+  }, [setSelectedTowerType]);
+
+  const handleTowerClickOnBoard = useCallback((towerId: string) => {
     const clickedTower = towers.find(t => t.id === towerId);
     if (!clickedTower) return;
 
-    setShowRangeIndicatorForTower(clickedTower); 
-    setSelectedTowerType(null); // Clear any new tower placement selection
+    setShowRangeIndicatorForTower(clickedTower);
+    setSelectedTowerType(null); 
 
-    if (firstSelectedTowerForMerge === towerId) { 
-        setFirstSelectedTowerForMerge(null); // Deselect if clicking the same tower again
-        setSelectedTowerForMovingId(null); // Also deselect for moving
-    } else if (firstSelectedTowerForMerge) { 
+    if (selectedTowerForMovingId === towerId) { 
+        setSelectedTowerForMovingId(null); 
+        setFirstSelectedTowerForMerge(null); 
+    } else if (firstSelectedTowerForMerge === towerId) {
+        setFirstSelectedTowerForMerge(null); 
+        setSelectedTowerForMovingId(null); 
+    } else if (firstSelectedTowerForMerge) {
         const firstTowerOriginal = towers.find(t => t.id === firstSelectedTowerForMerge);
         const mergeResult = attemptMergeTowers(firstSelectedTowerForMerge, towerId);
 
         if (mergeResult.success && mergeResult.resultingTower) {
-            setShowRangeIndicatorForTower(mergeResult.resultingTower); 
+            setShowRangeIndicatorForTower(mergeResult.resultingTower);
             toast({ title: "Kule Birleştirildi!", description: mergeResult.message });
         } else {
             toast({ title: "Birleştirme Başarısız", description: mergeResult.message, variant: "destructive" });
-            setShowRangeIndicatorForTower(firstTowerOriginal || null); 
+            setShowRangeIndicatorForTower(firstTowerOriginal || null);
         }
         setFirstSelectedTowerForMerge(null);
-        setSelectedTowerForMovingId(null); 
-    } else { // First tower selected for a potential merge or move
+        setSelectedTowerForMovingId(null);
+    } else { 
         setFirstSelectedTowerForMerge(towerId);
         setSelectedTowerForMovingId(towerId);
     }
-  };
+  }, [towers, selectedTowerForMovingId, firstSelectedTowerForMerge, attemptMergeTowers, toast, setSelectedTowerType]);
 
-  // Kule taşıma işlemi
-  const handleMoveTowerRequest = (towerId: string, spot: PlacementSpot) => {
+  const handleMoveTowerRequest = useCallback((towerId: string, spot: PlacementSpot) => {
     const success = moveTower(towerId, spot.id);
-    const movedTower = towers.find(t => t.id === towerId); 
+    const movedTower = towers.find(t => t.id === towerId);
     if (success && movedTower) {
-      setShowRangeIndicatorForTower(movedTower); 
+      setShowRangeIndicatorForTower(movedTower);
       toast({ title: "Kule Taşındı!", description: `${gameConfig.towerTypes[movedTower.type]?.name || 'Kule'} yeni yerine taşındı.` });
     } else {
       toast({ title: "Taşıma Başarısız", description: "Kule bu noktaya taşınamadı.", variant: "destructive" });
+      const originalTower = towers.find(t => t.id === towerId);
+      setShowRangeIndicatorForTower(originalTower || null);
     }
-    setSelectedTowerForMovingId(null); 
-    setFirstSelectedTowerForMerge(null); 
-  };
-  
-  // Yeni kule yerleştirme
-  const handlePlaceNewTower = (spot: PlacementSpot, towerType: TowerCategory) => {
+    setSelectedTowerForMovingId(null);
+    setFirstSelectedTowerForMerge(null);
+  }, [moveTower, towers, toast]);
+
+  const handlePlaceNewTower = useCallback((spot: PlacementSpot, towerType: TowerCategory) => {
     const result = placeTower(spot, towerType);
     if (result.success) {
         toast({ title: "Kule Yerleştirildi", description: result.message });
-        // Find the newly placed tower to show its range
-        const newPlacedTower = towers.find(t => {
-            const spotPx = gridToPixel(spot);
-            // This might be tricky if multiple towers of same type are placed quickly.
-            // A more robust way would be if placeTower returned the new tower's ID.
-            // For now, we find the last one matching type and roughly the spot.
-            const allOfTypeAtSpot = towers.filter(t => 
-                t.type === towerType && 
-                Math.abs(t.x - spotPx.x) < gameConfig.cellSize / 2 && 
-                Math.abs(t.y - spotPx.y) < gameConfig.cellSize / 2
-            );
-            return allOfTypeAtSpot.length > 0 ? allOfTypeAtSpot[allOfTypeAtSpot.length-1] : undefined;
-        });
+        const spotPx = gridToPixel(spot);
+        // Robustly find the newly placed tower by checking spot AND type, and perhaps timestamp if available
+        // For now, this simplified find might work if placeTower updates towers state synchronously
+        const newPlacedTower = towers.find(t =>
+            t.type === towerType &&
+            Math.abs(t.x - spotPx.x) < gameConfig.cellSize / 4 &&
+            Math.abs(t.y - spotPx.y) < gameConfig.cellSize / 4
+        );
         if (newPlacedTower) setShowRangeIndicatorForTower(newPlacedTower);
-
     } else {
         toast({ title: "Yerleştirme Başarısız", description: result.message, variant: "destructive" });
     }
-    // Clear selections after attempting to place a new tower
     setSelectedTowerType(null);
     setFirstSelectedTowerForMerge(null);
     setSelectedTowerForMovingId(null);
-  };
+  }, [placeTower, toast, gridToPixel, towers, setSelectedTowerType]);
 
-  // Seçili kule tipi (yeni yerleştirme için) değiştiğinde diğer seçimleri temizle
   useEffect(() => {
     if (gameState.selectedTowerType) {
       setFirstSelectedTowerForMerge(null);
       setSelectedTowerForMovingId(null);
-      // Don't clear showRangeIndicatorForTower here, as it might be for an existing tower.
-      // It will be cleared by handleTowerSelectionForPlacement if a new type is selected.
     }
   }, [gameState.selectedTowerType]);
 
-  // Oyun bitti veya kazanıldığında seçimleri temizle
   useEffect(() => {
     if (gameState.isGameOver || gameState.gameStatus === 'gameWon') {
       setFirstSelectedTowerForMerge(null);
       setSelectedTowerForMovingId(null);
       setShowRangeIndicatorForTower(null);
-      setSelectedTowerType(null); // Also clear selected tower type for placement
+      setSelectedTowerType(null);
     }
   }, [gameState.isGameOver, gameState.gameStatus, setSelectedTowerType]);
 
-  // Dalga butonunun metnini belirleme
-  const getWaveButtonText = () => {
+  const getWaveButtonText = useCallback(() => {
     if (gameState.gameStatus === 'initial') return 'Oyunu Başlat';
     if (gameState.gameStatus === 'betweenMainWaves') {
         if (gameState.currentMainWaveDisplay >= gameConfig.totalMainWaves) return 'Oyun Bitti';
@@ -210,106 +204,71 @@ export default function KuleSavunmaPage() {
         return `Dalga ${gameState.currentMainWaveDisplay}-${gameState.currentSubWaveInMainDisplay} / ${gameConfig.subWavesPerMain}`;
     }
     return 'Dalga Başlat';
-  };
+  }, [gameState.gameStatus, gameState.currentMainWaveDisplay, gameState.currentSubWaveInMainDisplay]);
 
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden bg-green-100">
-      <header className="h-12 bg-green-800 text-white p-2 flex justify-between items-center shadow-lg z-20 shrink-0">
-        <h1 className="text-xl font-bold ml-2">Kule Savunma Ustası</h1>
-        <div className="flex items-center gap-3 mr-2">
-          <Button 
-            variant="outline" 
-            size="sm" 
+    <div className="flex flex-col h-screen w-screen overflow-hidden bg-background">
+      <header className="h-12 bg-primary text-primary-foreground p-2 flex justify-center items-center shadow-lg z-20 shrink-0">
+        <h1 className="text-xl font-bold">Kule Savunma Ustası</h1>
+      </header>
+
+      <div className="flex-1 flex flex-row justify-center items-start p-4 gap-6 mt-4">
+        {/* Game Board Area (ImprovedGameBoard now contains its own left tower controls) */}
+        <div className="flex-shrink-0"> 
+          <ImprovedGameBoard
+            towers={towers}
+            enemies={enemies}
+            projectiles={projectiles}
+            placementSpots={currentPlacementSpots}
+            selectedTowerType={gameState.selectedTowerType}
+            selectedTowerForMovingId={selectedTowerForMovingId}
+            onPlaceTower={handlePlaceNewTower}
+            onTowerClick={handleTowerClickOnBoard}
+            onSelectTowerType={handleTowerSelectionForPlacement}
+            onMoveTowerRequest={handleMoveTowerRequest}
+            gridToPixel={gridToPixel}
+            showRangeIndicatorForTower={showRangeIndicatorForTower}
+            gameState={{...gameState, setGameState}}
+            firstSelectedTowerForMerge={firstSelectedTowerForMerge} // Pass this for visual feedback on merge selection
+          />
+        </div>
+
+        {/* Right Controls Panel */}
+        <div className="flex flex-col gap-4 p-4 bg-card text-card-foreground rounded-lg shadow-xl w-64 sticky top-[calc(3rem+2rem)]"> {/* Adjust top for header + mt-4 */}
+          <Button
+            onClick={startNextWave}
+            disabled={
+                !(gameState.gameStatus === 'initial' || gameState.gameStatus === 'betweenMainWaves') ||
+                gameState.isGameOver ||
+                gameState.gameStatus === 'gameWon' ||
+                !!selectedTowerForMovingId 
+            }
+            className="bg-accent hover:bg-accent/90 text-accent-foreground font-bold py-3 px-6 rounded-lg shadow-lg text-base"
+          >
+            {getWaveButtonText()}
+          </Button>
+          <Button
+            variant="outline"
             onClick={() => setIsInstructionsOpen(true)}
-            className="bg-green-700 text-white hover:bg-green-600 border-green-600"
+            className="bg-secondary hover:bg-secondary/80 text-secondary-foreground"
           >
             Nasıl Oynanır?
           </Button>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => {
-              resetGame();
-              // Clear local selections on reset
-              setFirstSelectedTowerForMerge(null);
-              setSelectedTowerForMovingId(null);
-              setShowRangeIndicatorForTower(null);
-              setSelectedTowerType(null);
-            }}
-            className="bg-amber-600 text-white hover:bg-amber-500 border-amber-500"
+          <Button
+            variant="destructive"
+            onClick={resetGameAndSelections}
           >
             Yeniden Başlat
           </Button>
         </div>
-      </header>
-
-      <div className="flex-1 flex items-center justify-center p-2 sm:p-4"> {/* Added responsive padding */}
-        <div className="w-full max-w-4xl flex flex-col items-center"> {/* Max width for game area + button */}
-            <div className="shadow-2xl rounded-lg overflow-hidden border-2 border-green-800 w-full">
-                <ImprovedGameBoard
-                    towers={towers}
-                    enemies={enemies}
-                    projectiles={projectiles}
-                    placementSpots={currentPlacementSpots}
-                    selectedTowerType={gameState.selectedTowerType} // Pass this from gameState for highlighting spots
-                    selectedTowerForMovingId={selectedTowerForMovingId}
-                    onPlaceTower={handlePlaceNewTower}
-                    onTowerClick={handleTowerClickOnBoard} // For clicking existing towers
-                    onSelectTowerType={handleTowerSelectionForPlacement} // For selecting new tower from ImprovedGameBoard's UI
-                    onMoveTowerRequest={handleMoveTowerRequest}
-                    gridToPixel={gridToPixel}
-                    showRangeIndicatorForTower={showRangeIndicatorForTower}
-                    gameState={{...gameState, setGameState}} // Pass full gameState and setGameState
-                />
-            </div>
-          
-            {/* Dalga Başlatma Butonu */}
-            <div className="w-full bg-green-800 text-white p-3 flex justify-center rounded-b-lg border-2 border-t-0 border-green-800 mt-[-2px]"> {/* Adjusted margin for seamless look */}
-                <Button
-                onClick={startNextWave}
-                disabled={
-                    !(gameState.gameStatus === 'initial' || gameState.gameStatus === 'betweenMainWaves') || 
-                    gameState.isGameOver || 
-                    gameState.gameStatus === 'gameWon' ||
-                    !!selectedTowerForMovingId // Disable if moving a tower
-                }
-                className="bg-amber-600 hover:bg-amber-500 text-white font-bold py-2 px-8 rounded-lg shadow-lg transition-all text-base"
-                >
-                {getWaveButtonText()}
-                </Button>
-            </div>
-        </div>
       </div>
 
-      {/* Oyun Sonu ve Talimat Ekranları */}
-      <GameOverScreen
-        isOpen={gameState.isGameOver && gameState.gameStatus === 'gameOver'}
-        score={gameState.score}
-        onRestart={() => {
-            resetGame();
-            setFirstSelectedTowerForMerge(null);
-            setSelectedTowerForMovingId(null);
-            setShowRangeIndicatorForTower(null);
-            setSelectedTowerType(null);
-        }}
-      />
-      
-      <GameWonScreen
-        isOpen={gameState.gameStatus === 'gameWon'}
-        score={gameState.score}
-        onRestart={() => {
-            resetGame();
-            setFirstSelectedTowerForMerge(null);
-            setSelectedTowerForMovingId(null);
-            setShowRangeIndicatorForTower(null);
-            setSelectedTowerType(null);
-        }}
-      />
-      
-      <InstructionsModal
-        isOpen={isInstructionsOpen}
-        onClose={() => setIsInstructionsOpen(false)}
-      />
+      {/* Modals */}
+      <GameOverScreen isOpen={gameState.isGameOver && gameState.gameStatus === 'gameOver'} score={gameState.score} onRestart={resetGameAndSelections} />
+      <GameWonScreen isOpen={gameState.gameStatus === 'gameWon'} score={gameState.score} onRestart={resetGameAndSelections} />
+      <InstructionsModal isOpen={isInstructionsOpen} onClose={() => setIsInstructionsOpen(false)} />
     </div>
   );
 }
+
+    
